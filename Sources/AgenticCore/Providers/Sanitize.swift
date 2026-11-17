@@ -81,4 +81,38 @@ public enum Sanitize {
               let data = try? Data(contentsOf: url) else { return nil }
         return jsonObject(data)
     }
+
+    /// Replace anything token-shaped with "…": `Bearer …`, `sk-…`, JWTs
+    /// (`eyJ…`), and long base64/hex-like runs that mix letters and digits.
+    /// For text that is shown but came from a process we don't control.
+    public static func redactSecrets(_ text: String) -> String {
+        var s = text
+        let rules: [(String, String)] = [
+            (#"(?i)\b(bearer)(\s*[:=]?\s+)[^\s"',;]+"#, "$1$2…"),
+            (#"\beyJ[A-Za-z0-9_\-]+(?:\.[A-Za-z0-9_\-]+)*"#, "…"),
+            (#"\b(sk|pk|rk)-[A-Za-z0-9_\-]{6,}"#, "$1-…"),
+            (#"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|secret|password)(["']?\s*[:=]\s*["']?)[^\s"',;]+"#, "$1$2…"),
+        ]
+        for (pattern, template) in rules {
+            s = s.replacingOccurrences(of: pattern, with: template, options: .regularExpression)
+        }
+        // Long runs of token alphabet that contain both a letter and a digit
+        // (judged per path component, so ordinary paths survive).
+        guard let run = try? NSRegularExpression(pattern: #"[A-Za-z0-9+/=_\-]{24,}"#) else { return s }
+        let ns = s as NSString
+        var out = ""
+        var last = 0
+        for match in run.matches(in: s, range: NSRange(location: 0, length: ns.length)) {
+            let piece = ns.substring(with: match.range)
+            let chunks = piece.split(separator: "/")
+            let tokenLike = chunks.contains { chunk in
+                chunk.count >= 24 && chunk.contains(where: \.isNumber) && chunk.contains(where: \.isLetter)
+            }
+            guard tokenLike else { continue }
+            out += ns.substring(with: NSRange(location: last, length: match.range.location - last)) + "…"
+            last = match.range.location + match.range.length
+        }
+        out += ns.substring(from: last)
+        return out
+    }
 }

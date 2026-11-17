@@ -32,7 +32,8 @@ public struct OpenCodeCollector: ProviderCollector {
 
     public func collect(_ context: CollectorContext) async -> Provider {
         var provider = Provider(id: .opencode, source: "opencode-api")
-        provider.activity = Self.activity(context)
+        // sqlite3 and opencode are child processes; keep them off the cooperative pool.
+        provider.activity = await Blocking.run { Self.activity(context) }
 
         guard let command = context.resolveCommand(context.opencodeCommand, default: "opencode") else {
             provider.error = "opencode not found"
@@ -40,7 +41,7 @@ public struct OpenCodeCollector: ProviderCollector {
         }
 
         let data: [String: Any]
-        switch Self.fetch(command: command, context: context) {
+        switch await Blocking.run({ Self.fetch(command: command, context: context) }) {
         case .error(let message):
             provider.error = message
             return provider

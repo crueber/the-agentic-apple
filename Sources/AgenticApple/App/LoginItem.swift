@@ -23,6 +23,19 @@ enum LoginItem {
         return isEnabled
     }
 
+    /// Unregisters regardless of the current status (uninstall). True when nothing is left registered.
+    static func unregister() -> Bool {
+        guard isAvailable else { return false }
+        if SMAppService.mainApp.status == .notRegistered || SMAppService.mainApp.status == .notFound { return true }
+        do {
+            try SMAppService.mainApp.unregister()
+            return true
+        } catch {
+            FileHandle.standardError.write(Data("Could not remove the login item: \(error.localizedDescription)\n".utf8))
+            return false
+        }
+    }
+
     static var needsApproval: Bool {
         isAvailable && SMAppService.mainApp.status == .requiresApproval
     }

@@ -379,7 +379,8 @@ public struct CodexCollector: ProviderCollector {
         let lines = client.drainedStderr().split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         if !lines.isEmpty {
-            let joined = lines.joined(separator: " ")
+            // Redact before truncating, so a token cut at the edge can't slip under the threshold.
+            let joined = Sanitize.redactSecrets(lines.joined(separator: " "))
             return Sanitize.plain("codex app-server exited: \(String(joined.suffix(275)))", max: 320)
         }
         return authHelp
@@ -440,7 +441,8 @@ public struct CodexCollector: ProviderCollector {
             let general = limitId == "codex" || (buckets.count == 1 && limitName == nil)
             let name = Sanitize.plain(limitName ?? limitId, max: 60).trimmingCharacters(in: .whitespaces)
             for window in [bucket["primary"], bucket["secondary"]] {
-                guard var (entry, minutes) = limitWindow(window) else { continue }
+                guard let (window, minutes) = limitWindow(window) else { continue }
+                var entry = window
                 if !general {
                     let span = windowTitle(minutes)
                     entry.title = span.isEmpty ? name : "\(name) \(span)"
@@ -557,37 +559,53 @@ public struct CodexCollector: ProviderCollector {
     }
 }
 
-// MARK: - A small JSON-RPC line client over a long-lived Process
+
+// MARK: - A small JSON-RPC line client over a long-lived child
 
 /// Talks newline-delimited JSON-RPC to a child over stdin/stdout. stderr is
 /// drained into a bounded buffer (never an unread pipe that could fill).
+/// The child leads its own process group, so shutdown also reaches what it
+/// started (the npm node wrapper's real binary, MCP servers).
 final class RPCClient: @unchecked Sendable {
     struct Failure: Error { let message: String }
 
     static let maxPending = 4 * 1024 * 1024
 
-    private let process = Process()
-    private let stdinPipe = Pipe()
-    private let stdoutPipe = Pipe()
-    private let stderrPipe = Pipe()
+    private let pid: pid_t
+    private let stdinHandle: FileHandle
+    private let stdoutHandle: FileHandle
+    private let stderrHandle: FileHandle
     private let condition = NSCondition()
     private var pending = Data()
     private var eof = false
     private var exited = false
+    private var reaped = false
+    private var abandoned = false
     private let stderrBox = DataBox()
 
     init(executable: String, arguments: [String], environment: [String: String]) throws {
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        process.environment = environment
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        guard let input = Spawn.pipe() else { throw Failure(message: "could not create a pipe") }
+        guard let output = Spawn.pipe() else { Spawn.close(input); throw Failure(message: "could not create a pipe") }
+        guard let errors = Spawn.pipe() else {
+            Spawn.close(input); Spawn.close(output)
+            throw Failure(message: "could not create a pipe")
+        }
+        do {
+            pid = try Spawn.spawn(executable, arguments, environment: environment,
+                                  stdin: input.read, stdout: output.write, stderr: errors.write)
+        } catch let failure as Spawn.Failure {
+            Spawn.close(input); Spawn.close(output); Spawn.close(errors)
+            throw Failure(message: String(cString: strerror(failure.code)))
+        }
+        Darwin.close(input.read); Darwin.close(output.write); Darwin.close(errors.write)
+        stdinHandle = FileHandle(fileDescriptor: input.write, closeOnDealloc: true)
+        stdoutHandle = FileHandle(fileDescriptor: output.read, closeOnDealloc: true)
+        stderrHandle = FileHandle(fileDescriptor: errors.read, closeOnDealloc: true)
 
         // A child that exits early must not take us down with SIGPIPE.
-        _ = fcntl(stdinPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+        _ = fcntl(input.write, F_SETNOSIGPIPE, 1)
 
-        stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        stdoutHandle.readabilityHandler = { [weak self] handle in
             let chunk = handle.availableData
             guard let self else { return }
             self.condition.lock()
@@ -600,35 +618,32 @@ final class RPCClient: @unchecked Sendable {
             self.condition.broadcast()
             self.condition.unlock()
         }
-        stderrPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        stderrHandle.readabilityHandler = { [weak self] handle in
             let chunk = handle.availableData
             if chunk.isEmpty { handle.readabilityHandler = nil; return }
             self?.stderrBox.append(chunk, limit: 64 * 1024)
         }
-        process.terminationHandler = { [weak self] _ in
-            guard let self else { return }
-            self.condition.lock()
-            self.exited = true
-            self.condition.broadcast()
-            self.condition.unlock()
-        }
-        do {
-            try process.run()
-        } catch {
-            stdoutPipe.fileHandleForReading.readabilityHandler = nil
-            stderrPipe.fileHandleForReading.readabilityHandler = nil
-            throw error
+        // Watch for the exit without reaping: until `shutdown` reaps, the pid
+        // (and so the process group id) cannot be reused.
+        let pid = self.pid
+        DispatchQueue.global(qos: .utility).async { [self] in
+            _ = Spawn.hasExited(pid, block: true)
+            condition.lock()
+            exited = true
+            let reapNow = abandoned
+            condition.broadcast()
+            condition.unlock()
+            if reapNow { self.reap() }
         }
     }
 
     /// stderr after the child exited: stop the handler, then read what is left,
     /// since the termination and readability callbacks are not ordered.
     func drainedStderr() -> String {
-        let handle = stderrPipe.fileHandleForReading
-        handle.readabilityHandler = nil
+        stderrHandle.readabilityHandler = nil
         // Non-blocking: a grandchild that inherited stderr may still hold it open.
-        let fd = handle.fileDescriptor
-        _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
+        let fd = stderrHandle.fileDescriptor
+        Spawn.setNonBlocking(fd)
         var buffer = [UInt8](repeating: 0, count: 16 * 1024)
         for _ in 0..<8 {
             let n = Darwin.read(fd, &buffer, buffer.count)
@@ -644,7 +659,7 @@ final class RPCClient: @unchecked Sendable {
               var data = try? JSONSerialization.data(withJSONObject: payload, options: [.withoutEscapingSlashes])
         else { throw Failure(message: "could not encode \(operation)") }
         data.append(0x0A)
-        let fd = stdinPipe.fileHandleForWriting.fileDescriptor
+        let fd = stdinHandle.fileDescriptor
         let ok = data.withUnsafeBytes { raw -> Bool in
             guard var p = raw.baseAddress else { return false }
             var left = raw.count
@@ -700,19 +715,41 @@ final class RPCClient: @unchecked Sendable {
         return true
     }
 
-    /// Terminate, wait a second, then SIGKILL.
+    /// Close stdin; SIGTERM the process group, wait a second, then SIGKILL it.
+    /// The group is signalled even when the leader already exited (it is not
+    /// reaped yet, so the id is still ours): that is how grandchildren of a
+    /// stalled or crashed server are not orphaned.
     func shutdown() {
-        try? stdinPipe.fileHandleForWriting.close()
-        if process.isRunning {
-            process.terminate()
-            if !waitForExit(timeout: 1) {
-                kill(process.processIdentifier, SIGKILL)
-                _ = waitForExit(timeout: 1)
-            }
+        try? stdinHandle.close()
+        if !waitForExit(timeout: 0) {
+            kill(-pid, SIGTERM)
+            kill(-pid, SIGCONT)
+            _ = waitForExit(timeout: 1)
         }
-        stdoutPipe.fileHandleForReading.readabilityHandler = nil
-        stderrPipe.fileHandleForReading.readabilityHandler = nil
-        try? stdoutPipe.fileHandleForReading.close()
-        try? stderrPipe.fileHandleForReading.close()
+        kill(-pid, SIGKILL)
+        if !waitForExit(timeout: 1) {
+            // Unkillable for now: the exit watcher reaps it when it finally goes.
+            condition.lock()
+            abandoned = true
+            let exitedMeanwhile = exited
+            condition.unlock()
+            if exitedMeanwhile { reap() }
+        } else {
+            reap()
+        }
+        stdoutHandle.readabilityHandler = nil
+        stderrHandle.readabilityHandler = nil
+        try? stdoutHandle.close()
+        try? stderrHandle.close()
+    }
+
+    private func reap() {
+        condition.lock()
+        let already = reaped
+        reaped = true
+        condition.unlock()
+        guard !already else { return }
+        var status: Int32 = 0
+        _ = Spawn.reap(pid, &status, block: true)
     }
 }

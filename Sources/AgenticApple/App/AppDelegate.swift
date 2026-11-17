@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        installMainMenu()
         settings = AppSettings()
         if LoginItem.isAvailable { settings.launchAtLogin = LoginItem.isEnabled }
         store = Store(settings: settings)
@@ -43,6 +44,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusController?.showPanel()
         return false
     }
+
+    /// An accessory app has no menu bar of its own, but key equivalents still go
+    /// through `NSApp.mainMenu`: without one, ⌘C/⌘V/⌘A/⌘Z/⌘X do nothing in the
+    /// Settings text fields and ⌘W does not close the window.
+    private func installMainMenu() {
+        let main = NSMenu()
+
+        let appMenu = NSMenu(title: AppInfo.name)
+        appMenu.addItem(withTitle: "About \(AppInfo.name)", action: #selector(aboutFromMenu(_:)), keyEquivalent: "")
+            .target = self
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Settings…", action: #selector(settingsFromMenu(_:)), keyEquivalent: ",")
+            .target = self
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Quit \(AppInfo.name)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        main.addItem(withTitle: AppInfo.name, action: nil, keyEquivalent: "").submenu = appMenu
+
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Delete", action: #selector(NSText.delete(_:)), keyEquivalent: "")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        main.addItem(withTitle: "Edit", action: nil, keyEquivalent: "").submenu = edit
+
+        let window = NSMenu(title: "Window")
+        window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        main.addItem(withTitle: "Window", action: nil, keyEquivalent: "").submenu = window
+        NSApp.windowsMenu = window
+
+        NSApp.mainMenu = main
+    }
+
+    @objc private func aboutFromMenu(_ sender: Any?) { showAbout() }
+    @objc private func settingsFromMenu(_ sender: Any?) { showSettings() }
 
     func showSettings() {
         if settingsWindow == nil {

@@ -5,8 +5,13 @@ import AgenticCore
 /// App state and the fetch lifecycle (README "How it fetches"):
 /// - paint the cached result immediately, then wait out the rest of the interval
 ///   (`Schedule.autoDelayMs`);
-/// - the search PATH is resolved once, off the main thread, before the first fetch;
-/// - collection runs detached (Shell.run blocks a thread), bounded by a timeout;
+/// - the search PATH and the shell variables collectors read are resolved once,
+///   off the main thread, before the first fetch (`SearchPath.resolveEnvironment`,
+///   raced against `environmentTimeout`; on expiry the process environment and the
+///   well-known dirs are used);
+/// - collection runs detached (Shell.run blocks a thread). After `collectTimeout`
+///   the attempt counts as failed, but no new collection starts until the
+///   abandoned one has really finished (its late result is still merged);
 /// - a fresh result is merged over the previous one (`ProviderMerge`), OpenRouter's
 ///   cycle history advances, and the cache is written after every attempt;
 /// - manual refresh at most every 30 s, automatic every `refreshIntervalSec`,
@@ -25,20 +30,37 @@ final class Store: ObservableObject {
 
     let settings: AppSettings
     let cacheURL: URL
-    private let collector: Collector
+    private let makeCollector: @Sendable () -> Collector
+    private var collector: Collector
     private var searchPath: [String] = []
+    private var environment: [String: String] = ProcessInfo.processInfo.environment
+    /// A collection is actually running (stays true past the timeout until it returns).
+    private var collecting = false
+    /// Identifies the current attempt; a result or timeout for an older one is ignored.
+    private var fetchGeneration = 0
+    /// Set when a fetch was wanted while an abandoned collection was still running.
+    private var fetchAfterCollect: Bool?
+    /// Clear Cache ran while a collection was in flight; its old activity store may
+    /// write `claude-activity.json` back when it returns, so clear again then.
+    private var clearAfterCollect = false
+    private var timeoutTask: Task<Void, Never>?
     private var pendingFetch: Bool?          // manual? — requested before PATH was ready
     private var pollTask: Task<Void, Never>?
     private var tickTimer: Timer?
     private var cancellables: Set<AnyCancellable> = []
 
     /// Whole collection is abandoned after this long (each source has its own shorter timeouts).
-    static let collectTimeout: TimeInterval = 90
+    nonisolated static let collectTimeout: TimeInterval = 90
+    /// The login-shell probe is given this long before falling back to the process environment.
+    nonisolated static let environmentTimeout: TimeInterval = 10
 
-    init(settings: AppSettings, cacheURL: URL = AppInfo.cacheURL, collector: Collector = .live()) {
+    /// `makeCollector` is called again by `clearCache`, so Claude's activity store starts empty.
+    init(settings: AppSettings, cacheURL: URL = AppInfo.cacheURL,
+         makeCollector: @escaping @Sendable () -> Collector = { .live() }) {
         self.settings = settings
         self.cacheURL = cacheURL
-        self.collector = collector
+        self.makeCollector = makeCollector
+        self.collector = makeCollector()
         settings.objectWillChange
             .sink { [weak self] in self?.objectWillChange.send() }
             .store(in: &cancellables)
@@ -57,15 +79,26 @@ final class Store: ObservableObject {
             Task { @MainActor in self?.tick() }
         }
         tickTimer?.tolerance = 5
-        let env = ProcessInfo.processInfo.environment
-        Task.detached(priority: .utility) {
-            let path = SearchPath.resolve(home: FileManager.default.homeDirectoryForCurrentUser, environment: env)
-            await MainActor.run { self.searchPathResolved(path) }
+        Task { [weak self] in
+            let resolved = await Self.resolveEnvironment(timeout: Self.environmentTimeout)
+            self?.environmentResolved(resolved)
         }
     }
 
-    private func searchPathResolved(_ path: [String]) {
-        searchPath = path
+    /// Login-shell PATH and allowlisted variables, or — when the shell does not
+    /// answer within `timeout` — the process environment plus the well-known dirs.
+    nonisolated static func resolveEnvironment(timeout: TimeInterval) async -> (searchPath: [String], environment: [String: String]) {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let env = ProcessInfo.processInfo.environment
+        let fallback = SearchPath.resolveEnvironment(home: home, environment: env, includeLoginShell: false)
+        return await race(timeout: timeout, fallback: fallback) {
+            SearchPath.resolveEnvironment(home: home, environment: env)
+        }
+    }
+
+    private func environmentResolved(_ resolved: (searchPath: [String], environment: [String: String])) {
+        searchPath = resolved.searchPath
+        environment = resolved.environment
         searchPathReady = true
         if let manual = pendingFetch {
             pendingFetch = nil
@@ -107,6 +140,11 @@ final class Store: ObservableObject {
             return
         }
         guard !busy else { return }
+        guard !collecting else {
+            // The previous (timed-out) collection is still running; fetch once it returns.
+            fetchAfterCollect = (fetchAfterCollect ?? false) || manual
+            return
+        }
         guard Schedule.canFetch(lastAttemptMs: lastAttemptMs, now: nowMs, manual: manual) else {
             if !manual { scheduleNextPoll() }
             return
@@ -116,38 +154,59 @@ final class Store: ObservableObject {
 
     private func spawnFetch() {
         busy = true
+        collecting = true
+        fetchGeneration += 1
+        let generation = fetchGeneration
         lastAttemptMs = nowMs
         writeCache()
-        let context = settings.snapshot.context(searchPath: searchPath)
+        var context = settings.snapshot.context(searchPath: searchPath)
+        context.environment = environment
         let collector = self.collector
-        Task {
-            let fresh = await Self.collect(collector, context, timeout: Self.collectTimeout)
-            self.apply(fresh)
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let fresh = await collector.collect(context)
+            await self?.collectionFinished(fresh, generation: generation)
+        }
+        timeoutTask?.cancel()
+        timeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.collectTimeout * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.collectionTimedOut(generation: generation)
         }
     }
 
-    /// Runs the collectors off the main actor; nil when they ran out of time.
-    /// A real race: the caller resumes at the timeout even though a stuck source
-    /// (Shell.run blocks its thread) keeps running until its own timeout.
-    nonisolated static func collect(_ collector: Collector, _ context: CollectorContext,
-                                    timeout: TimeInterval) async -> [Provider]? {
-        await withCheckedContinuation { (continuation: CheckedContinuation<[Provider]?, Never>) in
-            let once = ResumeOnce(continuation)
-            Task.detached(priority: .userInitiated) { once.resume(await collector.collect(context)) }
-            Task.detached {
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                once.resume(nil)
-            }
+    /// The collectors returned — possibly long after the timeout.
+    private func collectionFinished(_ fresh: [Provider], generation: Int) {
+        collecting = false
+        let current = generation == fetchGeneration
+        if current {
+            timeoutTask?.cancel()
+            timeoutTask = nil
+            busy = false
+            apply(fresh)
+            // The late result is as fresh as an automatic fetch would be.
+            if fetchAfterCollect == false { fetchAfterCollect = nil }
+        }
+        if clearAfterCollect {
+            clearAfterCollect = false
+            removeCacheFiles()
+            collector = makeCollector()
+        }
+        if let manual = fetchAfterCollect {
+            fetchAfterCollect = nil
+            requestFetch(manual: manual)
         }
     }
 
-    private func apply(_ fresh: [Provider]?) {
+    /// The attempt counts as failed; the collection itself keeps running (a stuck
+    /// source holds its thread until its own timeout), so `collecting` stays set.
+    private func collectionTimedOut(generation: Int) {
+        guard generation == fetchGeneration, busy else { return }
         busy = false
+        handleFailure("Agents took too long to answer")
+    }
+
+    private func apply(_ fresh: [Provider]) {
         let t = nowMs
-        guard let fresh else {
-            handleFailure("Agents took too long to answer")
-            return
-        }
         let merged = ProviderMerge.merge(previous: providers, fresh: fresh)
         providers = merged
         history = history.advanced(with: merged.first { $0.id == .openrouter }?.money, now: t)
@@ -215,11 +274,32 @@ final class Store: ObservableObject {
 
     // MARK: cache management
 
+    /// Forget everything shown and cached, Claude's activity scan included (a new
+    /// collector gets an empty activity store), then fetch afresh. A collection
+    /// still in flight is abandoned: its result is dropped, and the fresh fetch
+    /// starts as soon as it has returned.
     func clearCache() {
+        fetchGeneration += 1                // drop any in-flight result
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        busy = false
+        if collecting { clearAfterCollect = true }
+        removeCacheFiles()
+        collector = makeCollector()
+        providers = []
+        history = .empty
+        lastFetchMs = 0
+        lastAttemptMs = 0
+        failures = 0
+        lastError = ""
+        now = nowMs
+        requestFetch(manual: true)
+    }
+
+    private func removeCacheFiles() {
         let fm = FileManager.default
         try? fm.removeItem(at: cacheURL)
         try? fm.removeItem(at: cacheURL.deletingLastPathComponent().appendingPathComponent("claude-activity.json"))
-        history = .empty
     }
 
     // MARK: snapshot
@@ -245,12 +325,25 @@ final class Store: ObservableObject {
     }
 }
 
+/// Runs `work` on a detached thread and returns its value, or `fallback` when it
+/// has not finished within `timeout` (the work keeps running to its own end).
+func race<T: Sendable>(timeout: TimeInterval, fallback: T, _ work: @escaping @Sendable () -> T) async -> T {
+    await withCheckedContinuation { (continuation: CheckedContinuation<T, Never>) in
+        let once = ResumeOnce(continuation)
+        Task.detached(priority: .userInitiated) { once.resume(work()) }
+        Task.detached {
+            try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            once.resume(fallback)
+        }
+    }
+}
+
 /// Resumes a continuation exactly once, from whichever task gets there first.
-private final class ResumeOnce: @unchecked Sendable {
+final class ResumeOnce<T: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<[Provider]?, Never>?
-    init(_ c: CheckedContinuation<[Provider]?, Never>) { continuation = c }
-    func resume(_ value: [Provider]?) {
+    private var continuation: CheckedContinuation<T, Never>?
+    init(_ c: CheckedContinuation<T, Never>) { continuation = c }
+    func resume(_ value: T) {
         lock.lock()
         let c = continuation
         continuation = nil

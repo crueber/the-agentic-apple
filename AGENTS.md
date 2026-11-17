@@ -123,9 +123,9 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
 9. **Settings keys match the reference plugin** (`barStyle`, `show<Agent>`,
    `providerOrder`, `refreshIntervalSec`, `warnPercent`, `criticalPercent`,
    `warningColor`, `criticalColor`, `showActivity`, `opencodeCommand`,
-   `codexCommand`, `claudeCommand`, `grokHome`, `botHome`, `authFile`). Do not
-   rename them. `launchAtLogin` only mirrors `SMAppService`. `claudeCommand`
-   is stored and shown in Settings but no collector reads it yet.
+   `codexCommand`, `grokHome`, `botHome`, `authFile`). Do not rename them.
+   `launchAtLogin` only mirrors `SMAppService`; `--unregister-login-item`
+   removes it (used by `scripts/uninstall.sh`).
 10. **One defaults domain.** `AppInfo.defaults` makes `swift run` and the CLI
     read `com.crueber.agentic-apple`, the same domain as the bundled app.
 11. **Schedule** (`Logic/Schedule.swift`): automatic every
@@ -134,10 +134,16 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
     agent fails or the 90 s collection timeout fires. The cache is written after
     every attempt and painted on launch.
 12. **GUI environment.** The app inherits launchd's environment, not the
-    shell's. `SearchPath.resolve` asks the login shell for `PATH` once; any
-    other variable a collector reads should also have a Settings override.
-    Current gap: `CODEX_HOME` and `CLAUDE_CONFIG_DIR` have none, so the menu
-    bar app always uses `~/.codex` and `~/.claude`.
+    shell's. `SearchPath.resolveEnvironment` probes the login shell once per
+    launch (own session, no controlling terminal, bounded by a timeout) for
+    `PATH` and the allowlist in `SearchPath.importedVariables`; a variable
+    already in the process environment wins. A new variable a collector reads
+    belongs in that allowlist. The Store races the probe against 10 s and falls
+    back to the process environment plus well-known directories.
+13. **Processes never outlive their timeout.** `Shell.run` and the Codex RPC
+    client spawn children in their own process group and signal the group;
+    output draining after exit is bounded, so a grandchild holding a pipe
+    cannot stall a refresh.
 
 ## Testing
 

@@ -19,9 +19,12 @@ public struct OpenRouterCollector: ProviderCollector {
     public func collect(_ context: CollectorContext) async -> Provider {
         var provider = Provider(id: .openrouter, source: "openrouter-api")
 
-        let key = Self.resolveKey(context)
+        // `opencode auth export` and file reads block; keep them off the cooperative pool.
+        let key = await Blocking.run { Self.resolveKey(context) }
         if key.isEmpty {
-            provider.error = "no OpenRouter key found"
+            // Not an error (as the reference): a removed key must drop the row,
+            // not keep its last numbers forever.
+            provider.status = "No key"
             return provider
         }
         provider.available = true

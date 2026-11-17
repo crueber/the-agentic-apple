@@ -369,7 +369,26 @@ enum ClaudeTests {
         t.equal(p.activity.prompts, 4, "collector activity prompts")
         t.equal(p.activity.tokens, 525, "collector activity tokens")
         t.equal(p.status, "Waiting for auth", "claude dir present, no login")
+        t.equal(p.error, "Claude credentials could not be read", "unreadable login is an error")
         t.check(!p.available, "activity alone doesn't make it available")
+
+        // A locked Keychain after wake must not blank the row: the merge keeps the last numbers.
+        var good = Provider(id: .claude, source: "anthropic-oauth (test)")
+        good.available = true
+        good.tier = "Max 5x"
+        good.limits = [Limit(key: "session", label: "5-hour session", short: "5h", percent: 42, resetsAt: 0, limited: false)]
+        let merged = ProviderMerge.merge(previous: [good], fresh: [p])[0]
+        t.equal(merged.available, true, "merge keeps the row")
+        t.equal(merged.limits.first?.percent, 42, "merge keeps the last limits")
+        t.equal(merged.error, "Claude credentials could not be read", "merge carries the error")
+
+        // No Claude config dir at all: an unused agent, not an error.
+        let bare = Fixtures.tempHome("claude-bare")
+        let none = await ClaudeCollector(credentialReader: { _ in nil })
+            .collect(context(bare, now: now, http: stub(Calls())))
+        t.equal(none.available, false, "no config dir → unavailable")
+        t.equal(none.error, "", "no config dir → no error")
+        t.equal(none.status, "", "no config dir → no status")
 
         t.equal(ClaudeActivity.today(projects: home.appendingPathComponent("missing"), now: now), Activity(), "no projects dir")
     }

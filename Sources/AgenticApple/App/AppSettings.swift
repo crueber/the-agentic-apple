@@ -43,7 +43,6 @@ final class AppSettings: ObservableObject {
     @Published var criticalColor: String { didSet { defaults.set(criticalColor, forKey: Keys.criticalColor) } }
     @Published var opencodeCommand: String { didSet { defaults.set(opencodeCommand, forKey: Keys.opencodeCommand) } }
     @Published var codexCommand: String { didSet { defaults.set(codexCommand, forKey: Keys.codexCommand) } }
-    @Published var claudeCommand: String { didSet { defaults.set(claudeCommand, forKey: Keys.claudeCommand) } }
     @Published var grokHome: String { didSet { defaults.set(grokHome, forKey: Keys.grokHome) } }
     @Published var botHome: String { didSet { defaults.set(botHome, forKey: Keys.botHome) } }
     @Published var authFile: String { didSet { defaults.set(authFile, forKey: Keys.authFile) } }
@@ -61,7 +60,6 @@ final class AppSettings: ObservableObject {
         static let criticalColor = "criticalColor"
         static let opencodeCommand = "opencodeCommand"
         static let codexCommand = "codexCommand"
-        static let claudeCommand = "claudeCommand"
         static let grokHome = "grokHome"
         static let botHome = "botHome"
         static let authFile = "authFile"
@@ -87,7 +85,6 @@ final class AppSettings: ObservableObject {
         criticalColor = defaults.string(forKey: Keys.criticalColor) ?? ""
         opencodeCommand = s.opencodeCommand
         codexCommand = s.codexCommand
-        claudeCommand = s.claudeCommand
         grokHome = s.grokHome
         botHome = s.botHome
         authFile = s.authFile
@@ -116,7 +113,6 @@ struct SettingsSnapshot: Sendable {
     var criticalPercent = 90
     var opencodeCommand = ""
     var codexCommand = ""
-    var claudeCommand = ""
     var grokHome = ""
     var botHome = ""
     var authFile = ""
@@ -134,7 +130,6 @@ struct SettingsSnapshot: Sendable {
         s.criticalPercent = Schedule.clampInt((d.object(forKey: K.criticalPercent) as? NSNumber)?.doubleValue, 0, 100, fallback: 90)
         s.opencodeCommand = d.string(forKey: K.opencodeCommand) ?? ""
         s.codexCommand = d.string(forKey: K.codexCommand) ?? ""
-        s.claudeCommand = d.string(forKey: K.claudeCommand) ?? ""
         s.grokHome = d.string(forKey: K.grokHome) ?? ""
         s.botHome = d.string(forKey: K.botHome) ?? ""
         s.authFile = d.string(forKey: K.authFile) ?? ""
@@ -143,7 +138,7 @@ struct SettingsSnapshot: Sendable {
 
     func context(searchPath: [String], now: Date = Date()) -> CollectorContext {
         CollectorContext(searchPath: searchPath,
-                         opencodeCommand: opencodeCommand, codexCommand: codexCommand, claudeCommand: claudeCommand,
+                         opencodeCommand: opencodeCommand, codexCommand: codexCommand,
                          grokHome: grokHome, botHome: botHome, authFile: authFile, now: now)
     }
 }

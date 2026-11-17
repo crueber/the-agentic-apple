@@ -68,7 +68,7 @@ starts them. There is no telemetry, no analytics and no update check.
 
 | Executable | Arguments | When |
 | --- | --- | --- |
-| your login shell (`$SHELL`, else `/bin/zsh`) | `-l -i -c 'printf … "$PATH"'` | once per launch, 6-second timeout, to learn your `PATH` |
+| your login shell (`$SHELL`, else `/bin/zsh`) | `-l -i -c` with a fixed script printing `PATH` and an allowlist of variables | once per launch, in its own session with no terminal, bounded by a timeout |
 | `/usr/bin/security` | `find-generic-password -s "Claude Code-credentials" -w` | each refresh |
 | `/usr/bin/sqlite3` | `-readonly -json -cmd ".timeout 2000" <opencode.db> <fixed query>` | each refresh, when OpenCode's store exists |
 | `opencode` | `api GET /api/experimental/usage/limits`, then `api --standalone GET …`; `auth export openrouter`, `auth export` | each refresh |
@@ -79,7 +79,10 @@ Processes are started directly with an argument list; no outside text is ever
 interpolated into a command (the only shell involved is the fixed `PATH` probe
 above). Each has a
 timeout (killed after it), stdin closed or fed a fixed payload, and output
-capped (8 MB stdout, 256 KB stderr). The login-shell probe runs your shell's
+capped (8 MB stdout, 256 KB stderr); children run in their own process group,
+which is killed as a whole on timeout. The login-shell probe imports only `PATH`
+and the variables listed in the README (`OPENROUTER_API_KEY`, `CODEX_HOME`,
+`CLAUDE_CONFIG_DIR`, …); their values are never logged. It runs your shell's
 startup files once; if that is not acceptable, launch the app from a context
 whose `PATH` already holds your tools and set the command paths in Settings.
 

@@ -1,5 +1,9 @@
 # The Agentic Apple — build plan
 
+> Historical build plan. The code has moved on in places (no Codex rollout
+> fallback, no make-preview.sh — previews come from `--render-preview`);
+> AGENTS.md is the current architecture guide.
+
 A native macOS menu bar app that reproduces
 [omarchy-plugin-agent-meters](https://github.com/crueber/omarchy-plugin-agent-meters):
 one status item showing each AI agent's mark and limit meters, and a panel with

@@ -10,6 +10,7 @@ let suites: [(String, (TestRun) async -> Void)] = [
     ("Grok", GrokTests.run),
     ("Codex", CodexTests.run),
     ("Claude", ClaudeTests.run),
+    ("Shell", ShellTests.run),
 ]
 for (name, run) in suites where t.shouldRun(name) {
     await run(t)

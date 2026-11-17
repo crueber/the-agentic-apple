@@ -57,6 +57,7 @@ public struct ClaudeCollector: ProviderCollector {
     static let authHelp = "Run `claude auth login` to restore authoritative usage."
     static let expiredHelp = "Claude Code's saved sign-in expired. Start Claude Code, or run `claude auth login`, to refresh it."
     static let pausedHelp = "Claude Code's access token has lapsed. Start Claude Code to refresh it; signing in again is not needed."
+    static let unreadable = "Claude credentials could not be read"
     static let refusedHelp = "Anthropic refused Claude Code's sign-in. Start Claude Code, or run `claude auth login`, to sign in again."
 
     public let credentialReader: CredentialReader
@@ -169,14 +170,25 @@ public struct ClaudeCollector: ProviderCollector {
 
     public func collect(_ context: CollectorContext) async -> Provider {
         var provider = Provider(id: .claude, source: "anthropic-oauth")
-        provider.activity = activityStore.scan(projects: Self.configDir(context).appendingPathComponent("projects"),
-                                              now: context.now)
+        // The Keychain read (`security`) and the transcript scan block; keep
+        // them off the cooperative pool.
+        let store = activityStore, reader = credentialReader
+        let (activity, credentials) = await Blocking.run { () -> (Activity, ClaudeCredentials?) in
+            let activity = store.scan(projects: Self.configDir(context).appendingPathComponent("projects"),
+                                      now: context.now)
+            return (activity, reader(context))
+        }
+        provider.activity = activity
 
-        guard let creds = credentialReader(context) else {
+        guard let creds = credentials else {
             // No login at all: an unused agent unless Claude Code lives here.
+            // Then it is a read failure (a locked Keychain after wake, a
+            // `security` timeout, a denied prompt): the error lets the merge
+            // keep the last good numbers.
             if FileManager.default.fileExists(atPath: Self.configDir(context).path) {
                 provider.status = "Waiting for auth"
                 provider.hint = Self.authHelp
+                provider.error = Self.unreadable
             }
             return provider
         }

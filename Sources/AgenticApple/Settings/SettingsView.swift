@@ -245,7 +245,6 @@ private struct AdvancedPane: View {
             Section {
                 PathField(title: "opencode", text: $settings.opencodeCommand, placeholder: "opencode on the login PATH")
                 PathField(title: "codex", text: $settings.codexCommand, placeholder: "codex on the login PATH")
-                PathField(title: "claude", text: $settings.claudeCommand, placeholder: "claude on the login PATH")
             } header: {
                 Text("Commands")
             } footer: {

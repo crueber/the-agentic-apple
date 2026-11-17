@@ -18,8 +18,11 @@ jobs:
         run: swift run agentic-selftest
       - name: Build app bundle
         run: scripts/build-app.sh
+      - name: Zip app bundle
+        # upload-artifact drops the exec bit; ditto keeps permissions, symlinks and the signature.
+        run: ditto -c -k --keepParent "dist/The Agentic Apple.app" "dist/The-Agentic-Apple.zip"
       - name: Upload app
         uses: actions/upload-artifact@v4
         with:
           name: The-Agentic-Apple
-          path: dist/
+          path: dist/The-Agentic-Apple.zip

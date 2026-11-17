@@ -98,14 +98,16 @@ shows that computer's agents.
 
 > **Environment variables and GUI apps.** An app launched from Finder, Spotlight
 > or at login does not inherit the variables your shell's startup files export.
-> The Agentic Apple asks your login shell for its `PATH` once at launch, but
-> nothing else. So `OPENROUTER_API_KEY`, `OPENROUTER_AUTH_FILE`, `GROK_HOME`,
-> `GROK_BOT_HOME`, `CODEX_HOME` and `CLAUDE_CONFIG_DIR` set in `~/.zshrc` reach
-> `agentic-apple --text` run from a terminal, but **not** the menu bar app. Use
-> the matching setting instead (**OpenCode auth file**, **Grok home**, **Grok
-> Bot cache**), or sign in to OpenRouter through OpenCode. `CODEX_HOME` and
-> `CLAUDE_CONFIG_DIR` have no in-app equivalent yet: the menu bar app always
-> uses `~/.codex` and `~/.claude`.
+> So once per launch The Agentic Apple asks your login shell (`$SHELL -l -i`)
+> for its `PATH` and for these variables only: `OPENROUTER_API_KEY`,
+> `OPENROUTER_AUTH_FILE`, `CODEX_HOME`, `CODEX_ACCESS_TOKEN`,
+> `CLAUDE_CONFIG_DIR`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `MISE_DATA_DIR`,
+> `GROK_HOME` and `GROK_BOT_HOME`. Set in `~/.zshrc` (or your shell's
+> equivalent), they reach the menu bar app as well as `agentic-apple --text`.
+> Nothing else from the shell is kept. A value changed in your startup files
+> takes effect at the app's next launch. If the shell does not answer in time,
+> the app carries on with its own environment and the well-known tool
+> directories.
 
 ## Order, switches and dragging
 
@@ -329,10 +331,14 @@ Schedule and caching:
   and painted immediately on the next launch; the app then waits out the rest
   of the refresh interval instead of re-reading.
 - **Isolation:** a failed provider keeps its last good numbers and gains an
-  error line. One endpoint being down never blanks the other agents.
+  error line. One endpoint being down never blanks the other agents. If the
+  Keychain cannot be read for a moment, Claude keeps its last numbers. A
+  collection that runs past 90 seconds counts as a failed attempt, but the
+  next one waits until it has really finished.
 - **Finding tools:** an app launched from Finder or at login does not inherit
   your shell's `PATH`. Once per launch the app runs your login shell
-  (`$SHELL -l -i -c`, 6-second timeout) to read its `PATH`, then adds
+  (`$SHELL -l -i -c`, 6-second timeout) to read its `PATH` and the
+  [allowlisted variables](#automatic-selection), then adds
   `~/.local/bin`, mise shims, `~/.bun/bin`, `~/.npm-global/bin`,
   `~/.opencode/bin`, `~/.cargo/bin`, `/opt/homebrew/bin` and `/usr/local/bin`.
   Set the **opencode** or **codex** command in Settings if a tool still is not
@@ -368,7 +374,8 @@ git clone https://github.com/crueber/the-agentic-apple && cd the-agentic-apple &
   executable;
 - opens the app (pass `--no-open` to skip).
 
-The app lives in the menu bar only — no Dock icon, no main window. To start it
+The app lives in the menu bar only — no Dock icon, no main window. Its icon
+(`Resources/AppIcon.icns`) shows in Finder, the About window and Login Items. To start it
 at every login, turn on **Launch at Login** from its menu or Settings.
 
 ### Requirements
@@ -462,8 +469,8 @@ run the app's executable directly:
 `~/Applications/"The Agentic Apple.app"/Contents/MacOS/agentic-apple --text`.
 
 Running these from a terminal also triggers the Keychain prompt above the first
-time. Remember that a terminal passes your shell's environment variables, and
-the menu bar app does not.
+time. A terminal passes your whole shell environment; the menu bar app gets
+only the [allowlisted variables](#automatic-selection) from your login shell.
 
 ## Use
 
@@ -497,8 +504,11 @@ Open **Settings…** from the menu or the panel. It has five panes:
 | **General** | Menu bar style (Meters, Percentages, Marks only); refresh interval (1 minute to 1 hour); local-activity line; Launch at login |
 | **Agents** | All five agents with drag handles and show switches, whether each is detected on this Mac, **Reset Order** |
 | **Thresholds** | Warning and critical sliders, warning and critical colours (**Use Default** clears them), a live preview |
-| **Advanced** | Paths to `opencode`, `codex` and `claude`; Grok home, Grok Bot cache, OpenCode auth file; **Reveal Cache in Finder**, **Clear Cache** |
+| **Advanced** | Paths to `opencode` and `codex`; Grok home, Grok Bot cache, OpenCode auth file; **Reveal Cache in Finder**, **Clear Cache** |
 | **About** | Version and links |
+
+The usual editing shortcuts (`⌘C`, `⌘V`, `⌘X`, `⌘A`, `⌘Z`) work in the
+Settings text fields, and `⌘W` closes the window.
 
 Settings are stored in the user defaults domain `com.crueber.agentic-apple`,
 under the same keys as the Omarchy plugin. Every change in the window is saved
@@ -537,7 +547,6 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
 | `showActivity` | bool | `true` | Show the local-activity line per agent |
 | `opencodeCommand` | string | `""` | Path to `opencode`; empty searches the login `PATH` |
 | `codexCommand` | string | `""` | Path to `codex`; empty searches the login `PATH`, mise and its installs |
-| `claudeCommand` | string | `""` | Stored and shown in Advanced, but not used yet: Claude is read from the Keychain and Anthropic's API, not through the `claude` CLI |
 | `grokHome` | string | `""` | Grok home; empty uses `$GROK_HOME` or `~/.grok` |
 | `botHome` | string | `""` | Grok Bot cache directory; empty tries the locations listed under [Grok](#grok) |
 | `authFile` | string | `""` | An OpenCode 1 `auth.json` holding the OpenRouter key; when set, only this file is read |
@@ -573,14 +582,16 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
     paths of today's transcript files, byte offsets, counts and 64-bit hashes
     of message ids.
 
-  Neither holds prompts, responses, keys or tokens. **Clear Cache** in Settings,
-  or deleting the directory, removes both at any time.
+  Neither holds prompts, responses, keys or tokens. **Clear Cache** in Settings
+  removes both, forgets the numbers on screen (OpenRouter's previous cycle and
+  Claude's activity scan included) and fetches afresh; deleting the directory
+  while the app is quit does the same.
 - **Untrusted text:** every string from a file, a command or the network is
   bounded and neutralised before display; percentages are clamped to 0–100;
   command output, files and responses are size- and time-limited.
 - **Executables run:** `/usr/bin/security`, `/usr/bin/sqlite3`, `opencode`,
   `codex`, `mise` (only `mise which codex`, offline) and, once per launch, your
-  login shell to read `PATH`. Never through a shell string; arguments are
+  login shell to read `PATH` and the allowlisted variables. Never through a shell string; arguments are
   passed directly.
 - The app writes nothing outside its cache directory and its defaults domain
   (plus the optional login item).
@@ -602,9 +613,8 @@ See [`SECURITY.md`](SECURITY.md) for reporting and the full data-flow notes.
 - **Codex starts its own app-server briefly each refresh** — a short-lived
   `codex app-server` process, shut down as soon as it answers. That is how
   Codex exposes its limits; there is no file to read instead.
-- **Shell environment variables do not reach the menu bar app** (see
-  [Automatic selection](#automatic-selection)).
-- **`claudeCommand`** is accepted but currently unused.
+- **Only allowlisted shell variables reach the menu bar app**, read once per
+  launch (see [Automatic selection](#automatic-selection)).
 
 ## Troubleshooting
 
@@ -615,15 +625,16 @@ agent is switched off; `agentic-apple --json` shows each agent's `available`,
 sign-in path for each agent.
 
 **The CLI finds an agent but the menu bar does not.** The difference is
-almost always the environment: your terminal exports variables (and has a
-`PATH`) that the menu bar app does not. Set the matching path in **Settings →
-Advanced** and refresh.
+almost always the environment: your terminal exports everything, the menu bar
+app only the [allowlisted variables](#automatic-selection) from your login
+shell, read at launch. Quit and reopen the app after changing your startup
+files, or set the matching path in **Settings → Advanced** and refresh.
 
 **An agent should appear but does not.**
 
 | Agent | Check |
 | --- | --- |
-| OpenRouter | `opencode auth export` contains an `openrouter` credential, or set **OpenCode auth file**; `OPENROUTER_API_KEY` only reaches the CLI |
+| OpenRouter | `OPENROUTER_API_KEY` exported by your login shell, `opencode auth export` contains an `openrouter` credential, or set **OpenCode auth file** |
 | OpenCode | `opencode auth list`; `opencode api GET /api/experimental/usage/limits` answers with a `go` block |
 | Grok | `~/.grok/logs/unified.jsonl` exists; run `grok` once and open `/usage` |
 | Codex | `codex login`; an API-key sign-in intentionally has no plan limits; set **codex** in Settings if it lives somewhere unusual |
@@ -648,10 +659,11 @@ expired. Open the Grok Bot desktop app to refresh it.
 works with `opencode api GET /api/experimental/usage/limits`; the app also
 retries once with `--standalone`.
 
-**OpenRouter is missing and `--json` says "no OpenRouter key found".** Sign in to OpenRouter in
-OpenCode (`opencode auth login`), or point **OpenCode auth file** at a file
-with an `openrouter` entry. OpenCode 2 users need no extra step: the app reads
-`opencode auth export`.
+**OpenRouter is missing.** Without a key, OpenRouter is simply left out — no
+error, `available: false` in `--json`. Export `OPENROUTER_API_KEY` from your
+login shell, sign in to OpenRouter in OpenCode (`opencode auth login`), or
+point **OpenCode auth file** at a file with an `openrouter` entry. OpenCode 2
+users need no extra step: the app reads `opencode auth export`.
 
 **Numbers look old.** Open the panel or press `R`; the footer says when they
 were read. After a failure the next try backs off up to 10 minutes, and a
@@ -670,14 +682,15 @@ General → Login Items** if macOS asks. It only works from the installed
 scripts/uninstall.sh
 ```
 
-The script quits the app, deletes it from `~/Applications` and `/Applications`,
-removes the `~/.local/bin/agentic-apple` link, the cache directory and the
-`com.crueber.agentic-apple` defaults domain. Turn **Launch at Login** off first
-if you enabled it; the script does not unregister the login item. To do it by
-hand:
+The script quits the app, unregisters its login item (it runs the installed
+app's `agentic-apple --unregister-login-item`), deletes it from
+`~/Applications` and `/Applications`, removes the `~/.local/bin/agentic-apple`
+link, the cache directory and the `com.crueber.agentic-apple` defaults domain.
+To do it by hand:
 
 ```bash
 osascript -e 'tell application id "com.crueber.agentic-apple" to quit'
+~/Applications/"The Agentic Apple.app"/Contents/MacOS/agentic-apple --unregister-login-item
 rm -rf ~/Applications/"The Agentic Apple.app" ~/.local/bin/agentic-apple
 rm -rf ~/Library/Caches/com.crueber.agentic-apple
 defaults delete com.crueber.agentic-apple
@@ -719,7 +732,8 @@ swift run agentic-apple --render-preview /tmp/previews
   `BUILD_NUMBER` and `SCRATCH_PATH`.
 - CI (`.github/workflows/ci.yml`) runs the self-test and builds the app bundle
   on a macOS runner for every push to `main` and every pull request, and
-  uploads the bundle as an artifact.
+  uploads the bundle, zipped with `ditto` so the executable bit survives, as an
+  artifact.
 
 Layout:
 

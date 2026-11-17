@@ -68,10 +68,20 @@ enum OpenRouterTests {
             let p = await c.collect(context(home: home, http: http))
             t.equal(p.id, .openrouter)
             t.equal(p.available, false, "no key → unavailable")
-            t.equal(p.error, "no OpenRouter key found")
+            t.equal(p.error, "", "no key is not an error")
+            t.equal(p.status, "No key")
             t.equal(p.source, "openrouter-api")
             t.check(p.money == nil, "no money without a key")
             t.equal(http.calls.count, 0, "no HTTP without a key")
+
+            // A removed key drops the row: the merge must not keep the old numbers.
+            var old = Provider(id: .openrouter, source: "openrouter-api")
+            old.available = true
+            old.money = Money(label: "key …abc", limit: 10, spend: 1, credits: nil, totalCredits: nil,
+                              resetInterval: "monthly", resetsAt: 0)
+            let merged = ProviderMerge.merge(previous: [old], fresh: [p])
+            t.equal(merged[0].available, false, "removed key → row dropped")
+            t.check(merged[0].money == nil, "removed key → no stale money")
         }
 
         // Env key: key + credits, monthly cycle, masked label.
@@ -194,7 +204,7 @@ enum OpenRouterTests {
             let missing = await c.collect(context(home: home, http: standardHTTP(),
                                                   authFile: home.appendingPathComponent("nope.json").path))
             t.equal(missing.available, false, "explicit missing file → no key")
-            t.equal(missing.error, "no OpenRouter key found")
+            t.equal(missing.error, "")
 
             let custom = home.appendingPathComponent("custom.json")
             try? Data(#"{"openrouter":{"apiKey":" sk-or-v1-demo-custom "}}"#.utf8).write(to: custom)
@@ -241,7 +251,7 @@ enum OpenRouterTests {
             let fake3 = Fixtures.fakeBinary(in: home3, name: "opencode", script: "echo '[]'")
             let p3 = await c.collect(context(home: home3, http: standardHTTP(), opencode: fake3))
             t.equal(p3.available, false)
-            t.equal(p3.error, "no OpenRouter key found")
+            t.equal(p3.error, "")
         }
 
         // maskKeyLabel matches the reference.
