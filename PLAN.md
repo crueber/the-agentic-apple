@@ -144,3 +144,11 @@ macOS-native extras: launch at login, a `agentic-apple` CLI mode
 4. Build, self-test, run the app, screenshot with synthetic data.
 5. **Parallel:** README, GH Pages site (docs/ + enable Pages), CI workflow.
 6. Code review subagent pass, fix, commit, push.
+
+## README must-haves (user requests)
+
+- Gatekeeper note, in the user's voice: "If someone wants to pay for my Apple
+  Developer Account, I'm happy to get rid of the annoying nag when installing
+  this tool." — beside the install / first-launch (unsigned app) instructions,
+  linking the Sponsor button.
+- Sponsor button: `.github/FUNDING.yml` (being set up by a subagent).

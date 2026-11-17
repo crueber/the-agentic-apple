@@ -1,0 +1,1 @@
+[{"integrationID":"anthropic","active":true,"value":{"key":"sk-demo-not-openrouter"}},{"integrationID":"openrouter","active":false,"value":{"key":"sk-or-v1-demo-inactive"}},{"integrationID":"openrouter","active":true,"value":{"apiKey":"sk-or-v1-demo-export-1111"}}]
