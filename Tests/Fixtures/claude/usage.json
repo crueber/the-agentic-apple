@@ -1,0 +1,20 @@
+{
+  "five_hour": { "utilization": 12.0, "resets_at": "2026-11-17T15:00:00.412345+00:00" },
+  "seven_day": { "utilization": 45, "resets_at": "2026-11-20T08:00:00+00:00" },
+  "seven_day_oauth_apps": { "utilization": 70, "resets_at": null },
+  "seven_day_opus": null,
+  "seven_day_sonnet": { "utilization": "30%", "resets_at": 1795334400 },
+  "seven_day_fable": { "utilization": 99, "resets_at": null },
+  "extra_usage": { "is_enabled": false, "monthly_limit": null, "used_credits": null, "utilization": null },
+  "limits": [
+    { "kind": "weekly_scoped", "percent": 8, "resets_at": "2026-11-21T00:00:00Z",
+      "scope": { "model": { "id": "claude-fable-x", "display_name": "Fable" } } },
+    { "kind": "weekly_scoped", "percent": 50,
+      "scope": { "model": { "id": "claude-fable-x", "display_name": "Fable" } } },
+    { "kind": "five_hour_scoped", "percent": 0.6,
+      "scope": { "model": { "id": "claude-zephyr-1", "display_name": "" } } },
+    { "kind": "weekly", "percent": 20, "scope": { "workspace": { "id": "ws" } } },
+    { "kind": "weekly_scoped", "percent": null,
+      "scope": { "model": { "display_name": "Nullmodel" } } }
+  ]
+}
