@@ -215,7 +215,7 @@
 <pre><code>xcode-select --install</code></pre>
       </div>
 
-      <p>To update, run <code>git pull &amp;&amp; scripts/install.sh</code> in the checkout. To remove the app, its settings and its cache, run <code>scripts/uninstall.sh</code>.</p>
+      <p>From version 0.2.0 an installed copy updates itself from the signed GitHub releases; version 0.1.0 has no updater, so install 0.2.0 by hand once. A checkout can also be updated with <code>git pull &amp;&amp; scripts/install.sh</code>. To remove the app, its settings and its cache, run <code>scripts/uninstall.sh</code>.</p>
 
       <aside class="note" aria-labelledby="gk-title">
         <h3 id="gk-title">The first launch</h3>
@@ -272,13 +272,18 @@
         <li class="feature">
           <svg class="ficon" viewBox="0 0 28 28" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="12" width="17" height="12" rx="3"/><path d="M9.5 12V8.5a4.5 4.5 0 0 1 9 0V12"/></g></svg>
           <h3>Privacy-first</h3>
-          <p>Credentials are read, never refreshed or stored, and the app itself talks to just two services. <a href="#privacy">How it works</a></p>
+          <p>Credentials are read, never refreshed or stored, and the app itself talks only to OpenRouter, Anthropic and GitHub's release pages. <a href="#privacy">How it works</a></p>
         </li>
         <li class="feature">
           <svg class="ficon" viewBox="0 0 28 28" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="21" height="18" rx="3.5"/><path d="M8.5 11l3.5 3-3.5 3M14.5 18h5"/></g></svg>
           <h3>Scriptable</h3>
           <p>The same readings in your terminal, for scripts and status lines:</p>
           <p class="cli"><code>agentic-apple --text</code> <code>agentic-apple --json</code></p>
+        </li>
+        <li class="feature feature-wide">
+          <svg class="ficon" viewBox="0 0 28 28" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4.5l8 3v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10v-6z"/><path d="M14 10v7.5M10.8 14.5L14 17.7l3.2-3.2"/></g></svg>
+          <h3>Signed automatic updates</h3>
+          <p>New releases install themselves from GitHub, but only when the disk image's Ed25519 signature matches a key built into the app and the app inside is a newer version of itself. A failed install rolls back to the old copy. One switch turns background checks off; <strong>Check for Updates…</strong> is always in the menu.</p>
         </li>
       </ul>
     </div>
@@ -336,16 +341,16 @@
           <dd>Keys and tokens are read, never written, refreshed or cached. When Claude Code's sign-in has expired, the panel says <em>Sign-in expired</em> and suggests <code>claude auth login</code>, rather than renewing it behind your back.</dd>
         </div>
         <div>
-          <dt>Two services</dt>
-          <dd>The app itself contacts only OpenRouter's key and credits endpoints and Anthropic's usage endpoint. The <code>opencode</code> and <code>codex</code> CLIs it asks talk to their own services, as they always do.</dd>
+          <dt>Three destinations, no telemetry</dt>
+          <dd>The app itself contacts only OpenRouter's key and credits endpoints, Anthropic's usage endpoint, and GitHub to check for and download its own releases. The <code>opencode</code> and <code>codex</code> CLIs it asks talk to their own services, as they always do. No analytics, no accounts; it is MIT-licensed open source, so you can check.</dd>
+        </div>
+        <div>
+          <dt>Signed updates</dt>
+          <dd>About two minutes after launch and then every six hours, the app asks GitHub for its latest release. An update is installed only if its disk image carries an Ed25519 signature from a key compiled into the app, and the app inside is a newer version of this same app. The check sends no key, token or identifier. Switch off <strong>Install updates automatically</strong> to stop background checks; <strong>Check for Updates…</strong> still works.</dd>
         </div>
         <div>
           <dt>A local cache</dt>
           <dd>The last readings live in <code class="path">~/Library/<wbr>Caches/<wbr>com.crueber.<wbr>agentic-apple</code>, in a folder only you can read, so the bar paints instantly at login.</dd>
-        </div>
-        <div>
-          <dt>No telemetry</dt>
-          <dd>No analytics, no accounts, no update pings. It is MIT-licensed open source, so you can check.</dd>
         </div>
       </dl>
     </div>

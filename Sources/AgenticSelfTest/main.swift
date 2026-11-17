@@ -11,6 +11,7 @@ let suites: [(String, (TestRun) async -> Void)] = [
     ("Codex", CodexTests.run),
     ("Claude", ClaudeTests.run),
     ("Shell", ShellTests.run),
+    ("Update", UpdateTests.run),
 ]
 for (name, run) in suites where t.shouldRun(name) {
     await run(t)

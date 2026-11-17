@@ -14,7 +14,8 @@ from Omarchy's `omarchy-agent-usage-claude` / `omarchy-agent-usage-codex`
 - **Command Line Tools only.** No Xcode project, no `xcodebuild`, no XCTest or
   swift-testing. Build with SwiftPM; `scripts/build-app.sh` assembles and
   ad-hoc signs the `.app`. Tests are the `agentic-selftest` executable.
-- **No dependencies.** Foundation, AppKit, SwiftUI, ServiceManagement only.
+- **No dependencies.** Foundation, AppKit, SwiftUI, ServiceManagement and
+  CryptoKit (update signatures) only.
 - **macOS 14+**, Swift tools 6.0, language mode 5 for every target.
 - **No Node, no Omarchy.** External tools (`opencode`, `codex`, `mise`,
   `sqlite3`, `security`) are only invoked when present.
@@ -36,6 +37,12 @@ from Omarchy's `omarchy-agent-usage-claude` / `omarchy-agent-usage-codex`
   - `Providers/` — one collector per agent, plus `Collector` (runs all five
     concurrently), `Shell` (process runner, `SearchPath`), `HTTP`, `Sanitize`.
     Each provider file's header documents its sources, paths and endpoints.
+  - `Update/` — the updater, AppKit-free: `UpdateFeed` (GitHub
+    `releases/latest`, asset names, caps, `UpdatePolicy` host allowlist),
+    `UpdateDownloader`, `UpdateSignature` (Ed25519), `UpdateVersion`,
+    `UpdateInstaller` (verify, mount, stage, swap, cleanup) and `UpdateKeys`
+    (`UpdateKeys.trusted`: base64 public keys, appended to by
+    `scripts/generate-update-key.sh`, never changed at run time).
 - `Sources/AgenticApple/`
   - `main.swift` — CLI modes first, then the accessory app.
   - `App/` — `CLI` (`--text`, `--json`, `--render-preview`, `--fixture`),
@@ -58,7 +65,13 @@ from Omarchy's `omarchy-agent-usage-claude` / `omarchy-agent-usage-codex`
 - `Tests/Fixtures/<agent>/` — synthetic fixtures, including a fake Codex
   app-server script.
 - `scripts/` — `build-app.sh`, `make-dmg.sh`, `install.sh`, `uninstall.sh`,
-  `test.sh`. `.github/workflows/release.yml` publishes the DMG on a `v*` tag.
+  `test.sh`; `generate-update-key.sh` (one-time signing-key setup, run by the
+  maintainer: private key to `~/.config/the-agentic-apple/update-signing-key`
+  and the `UPDATE_SIGNING_KEY` Actions secret, public key into
+  `UpdateKeys.swift`); `sign-update.swift` (`sign`, `check`, `verify`; run with
+  `swift scripts/sign-update.swift …`, key only from the environment).
+  `.github/workflows/release.yml` builds, signs, verifies and publishes the
+  DMG and its `.sig` on a `v*` tag.
 - `docs/` — the GitHub Pages site; `docs/images/` comes from
   `--render-preview`.
 
@@ -108,8 +121,12 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
    `Sanitize.dateMs`; files are size-checked before reading; `UsageCache.slim`
    re-sanitises on write and read.
 5. **Bounded everything.** Processes run through `Shell.run` (no shell string,
-   timeout, capped output); HTTP through `HTTPClient` (HTTPS, no redirects,
-   15 s, 1 MB).
+   timeout, capped output); usage HTTP through `HTTPClient` (HTTPS, no
+   redirects, 15 s, 1 MB). Update downloads go through `UpdateDownloader`
+   (HTTPS, redirects only to `UpdatePolicy.isAllowedDownloadURL` — github.com
+   and *.githubusercontent.com — 64 MB DMG / 4 KB signature caps). The updater's
+   tools (`hdiutil`, `codesign`, `ditto`) also run through `Shell.run`; the
+   only shell string is the fixed `/bin/sh` relaunch helper.
 6. **Never tint marks.** Marks use the inherited foreground; only meters and
    percentages carry `MeterState` colours. Colour rules live in
    `Meters` (`Logic/State.swift`): critical ≥ `criticalPercent` or `limited`,
@@ -125,6 +142,7 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
    `providerOrder`, `refreshIntervalSec`, `warnPercent`, `criticalPercent`,
    `warningColor`, `criticalColor`, `showActivity`, `opencodeCommand`,
    `codexCommand`, `grokHome`, `botHome`, `authFile`). Do not rename them.
+   `autoUpdate` (bool, default true) is this app's own addition.
    `launchAtLogin` mirrors `SMAppService` and records the user's choice:
    `LoginItem.ensureOnLaunch` turns it on at an installed copy's first launch
    and re-registers when the setting is on but macOS lost the item; never from
@@ -147,7 +165,21 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
 13. **Processes never outlive their timeout.** `Shell.run` and the Codex RPC
     client spawn children in their own process group and signal the group;
     output draining after exit is bounded, so a grandchild holding a pipe
-    cannot stall a refresh.
+    cannot stall a refresh. The one exception is the update relaunch helper,
+    which must outlive the app it replaces.
+14. **Updates are signed or not installed.** Never install anything whose
+    `.dmg.sig` does not verify (Ed25519, over the raw DMG bytes) against a key
+    in `UpdateKeys.trusted`, and never mount or read the image before it does.
+    The app inside must have bundle ID `com.crueber.agentic-apple` and a
+    version strictly newer than the running one (replay defence). There is no
+    runtime override of the key list or the release feed — no setting,
+    variable, file or argument. Install only into an installed copy in a
+    writable Applications folder; never from the CLI modes, `swift run`, an
+    unbundled or `dist/`/DMG/translocated copy, or the self-tests (tests use
+    injected HTTP and temporary directories, never the network or a real
+    bundle). Swap with a backup and roll back on any failure; the new version
+    removes the staging copy and the backup at launch
+    (`UpdateInstaller.cleanupLeftovers`).
 
 ## Testing
 
@@ -190,3 +222,24 @@ neither may ever contain key material or text.
 
 `show<Id>`, ordering, the Agents settings pane and the CLI follow from
 `ProviderID.allCases`.
+
+## Releasing
+
+One-time: the maintainer runs `scripts/generate-update-key.sh` and commits
+`Sources/AgenticCore/Update/UpdateKeys.swift`. Never run it, read the private
+key or set secrets on the user's behalf.
+
+1. Bump `VERSION` and add a `## X.Y.Z — YYYY-MM-DD` section to
+   `CHANGELOG.md` (the release notes are taken from it).
+2. Commit and push to `main`.
+3. Tag `vX.Y.Z` (must equal `VERSION`) and push the tag.
+
+`release.yml` fails early if the tag and `VERSION` differ, the
+`UPDATE_SIGNING_KEY` secret is empty, or `UpdateKeys.trusted` is empty or lacks
+the secret's public key; then self-tests, builds, signs, verifies against the
+committed keys and publishes the DMG and `.sig` in one `gh release create`.
+Key rotation is two-phase: `generate-update-key.sh --rotate` stages a new key
+(`…/update-signing-key.next`) and appends its public key while the secret keeps
+the old one; release once (the bridge trusts both, signed with the old key);
+then `--activate` switches the secret. Drop the old public key only after every
+copy has updated past the bridge (see SECURITY.md).

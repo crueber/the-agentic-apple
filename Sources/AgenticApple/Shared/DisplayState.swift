@@ -18,6 +18,8 @@ struct DisplayState: Equatable {
     var now: Double = Date().timeIntervalSince1970 * 1000
     var lastFetchMs: Double = 0
     var lastError: String = ""
+    /// "Updated to 0.2.1", shown once after a self-update.
+    var updateNote: String = ""
     var busy = false
     /// No fetch has finished yet in this session and nothing was cached.
     var looking = false
@@ -57,6 +59,7 @@ struct DisplayState: Equatable {
 
     var footerText: String {
         var parts: [String] = []
+        if !updateNote.isEmpty { parts.append(updateNote) }
         let updated = Format.updatedText(lastFetchMs, now: now)
         if !updated.isEmpty { parts.append(updated) }
         if !lastError.isEmpty { parts.append(lastError) }

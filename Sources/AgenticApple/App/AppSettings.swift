@@ -49,6 +49,8 @@ final class AppSettings: ObservableObject {
     @Published var showActivity: Bool { didSet { defaults.set(showActivity, forKey: Keys.showActivity) } }
     /// Mirrors SMAppService's state; the source of truth is the system.
     @Published var launchAtLogin: Bool { didSet { defaults.set(launchAtLogin, forKey: Keys.launchAtLogin) } }
+    /// Check for and install signed updates automatically (default on).
+    @Published var autoUpdate: Bool { didSet { defaults.set(autoUpdate, forKey: Keys.autoUpdate) } }
 
     enum Keys {
         static let barStyle = "barStyle"
@@ -65,6 +67,7 @@ final class AppSettings: ObservableObject {
         static let authFile = "authFile"
         static let showActivity = "showActivity"
         static let launchAtLogin = "launchAtLogin"
+        static let autoUpdate = "autoUpdate"
     }
 
     /// "show" + capitalised id, exactly as the reference: showOpenrouter, showOpencode, …
@@ -90,6 +93,7 @@ final class AppSettings: ObservableObject {
         authFile = s.authFile
         showActivity = defaults.object(forKey: Keys.showActivity) as? Bool ?? true
         launchAtLogin = defaults.bool(forKey: Keys.launchAtLogin)
+        autoUpdate = defaults.object(forKey: Keys.autoUpdate) as? Bool ?? true
     }
 
     func isShown(_ id: ProviderID) -> Bool { visibility[id] != false }

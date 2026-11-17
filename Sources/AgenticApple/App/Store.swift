@@ -27,6 +27,8 @@ final class Store: ObservableObject {
     @Published private(set) var busy = false
     @Published private(set) var now = Date().timeIntervalSince1970 * 1000
     @Published private(set) var searchPathReady = false
+    /// "Updated to 0.2.1" after a self-update; cleared once the panel has been seen.
+    @Published private(set) var updateNote = ""
 
     let settings: AppSettings
     let cacheURL: URL
@@ -48,6 +50,8 @@ final class Store: ObservableObject {
     private var pollTask: Task<Void, Never>?
     private var tickTimer: Timer?
     private var cancellables: Set<AnyCancellable> = []
+    /// The updater is about to replace the app: start no new collection.
+    private var fetchesHeld = false
 
     /// Whole collection is abandoned after this long (each source has its own shorter timeouts).
     nonisolated static let collectTimeout: TimeInterval = 90
@@ -135,6 +139,7 @@ final class Store: ObservableObject {
     func refreshNow() { requestFetch(manual: true) }
 
     func requestFetch(manual: Bool) {
+        guard !fetchesHeld else { return }
         guard searchPathReady else {
             pendingFetch = (pendingFetch ?? false) || manual
             return
@@ -261,6 +266,22 @@ final class Store: ObservableObject {
         }
     }
 
+    // MARK: updater hooks
+
+    /// A collection is running (including one abandoned after its timeout).
+    var isCollecting: Bool { collecting }
+
+    /// Hold (or release) new collections while the updater swaps the app.
+    func holdFetches(_ hold: Bool) {
+        fetchesHeld = hold
+        if !hold { scheduleNextPoll() }
+    }
+
+    func setUpdateNote(_ note: String) { updateNote = note }
+
+    /// The panel closed: a one-time update note has been seen.
+    func panelClosed() { if !updateNote.isEmpty { updateNote = "" } }
+
     // MARK: order and switches
 
     func setShown(_ id: ProviderID, _ shown: Bool) { settings.setShown(id, shown) }
@@ -319,6 +340,7 @@ final class Store: ObservableObject {
         s.now = now
         s.lastFetchMs = lastFetchMs
         s.lastError = lastError
+        s.updateNote = updateNote
         s.busy = busy
         s.looking = providers.isEmpty && (lastFetchMs == 0 || !searchPathReady)
         return s

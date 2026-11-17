@@ -43,6 +43,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSMenuDelegate {
     var showAbout: () -> Void = {}
     var toggleLaunchAtLogin: () -> Void = {}
     var launchAtLoginState: () -> (available: Bool, enabled: Bool) = { (false, false) }
+    var checkForUpdates: () -> Void = {}
+    var canCheckForUpdates: () -> Bool = { false }
 
     static let sidePadding: CGFloat = 5
 
@@ -176,6 +178,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSMenuDelegate {
             removeKeyMonitor()
             lastClosed = Date()
             statusItem.button?.highlight(false)
+            store.panelClosed()
         }
     }
 
@@ -201,6 +204,11 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSMenuDelegate {
         if !ls.available { login.toolTip = "Available when running The Agentic Apple.app" }
         menu.addItem(login)
         menu.addItem(.separator())
+        let updates = NSMenuItem(title: "Check for Updates…", action: #selector(menuCheckUpdates), keyEquivalent: "")
+        updates.target = self
+        updates.isEnabled = canCheckForUpdates()
+        if !AppInfo.isBundled { updates.toolTip = "Available when running The Agentic Apple.app" }
+        menu.addItem(updates)
         let about = NSMenuItem(title: "About \(AppInfo.name)", action: #selector(menuAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
@@ -216,5 +224,6 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSMenuDelegate {
     @objc private func menuRefresh() { store.refreshNow() }
     @objc private func menuSettings() { openSettings() }
     @objc private func menuAbout() { showAbout() }
+    @objc private func menuCheckUpdates() { checkForUpdates() }
     @objc private func menuLogin() { toggleLaunchAtLogin() }
 }

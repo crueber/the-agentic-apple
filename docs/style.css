@@ -291,6 +291,7 @@ code { font-family: var(--mono); font-size: 0.86em; background: var(--code-bg); 
 .feature-wide { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr; column-gap: 32px; align-items: center; }
 .feature-wide h3 { grid-column: 2; }
 .feature-wide p { grid-column: 2; }
+.feature-wide > .ficon { grid-row: 1 / span 2; }
 .marks-row { grid-row: 1 / span 2; display: flex; align-items: center; gap: 18px; --mk: 30px; color: var(--text); }
 .thresholds { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; width: 120px; }
 .thresholds .bar { --mh: 6px; color: var(--text); background: var(--track); }

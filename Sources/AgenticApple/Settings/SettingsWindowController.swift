@@ -5,8 +5,8 @@ import SwiftUI
 /// the window is brought forward explicitly).
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
-    init(settings: AppSettings, store: Store) {
-        let controller = NSHostingController(rootView: SettingsView(settings: settings, store: store))
+    init(settings: AppSettings, store: Store, updater: Updater) {
+        let controller = NSHostingController(rootView: SettingsView(settings: settings, store: store, updater: updater))
         let window = NSWindow(contentViewController: controller)
         window.title = "\(AppInfo.name) Settings"
         window.styleMask = [.titled, .closable, .miniaturizable]

@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settings: AppSettings!
     private var store: Store!
     private var statusController: StatusItemController!
+    private var updater: Updater!
     private var settingsWindow: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -33,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             store = Store(settings: settings)
         }
+        updater = Updater(settings: settings, store: store)
         statusController = StatusItemController(store: store)
         statusController.openSettings = { [weak self] in self?.showSettings() }
         statusController.showAbout = { [weak self] in self?.showAbout() }
@@ -41,12 +43,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.settings.launchAtLogin = LoginItem.set(!LoginItem.isEnabled)
         }
         statusController.launchAtLoginState = { (LoginItem.isAvailable, LoginItem.isEnabled) }
+        statusController.checkForUpdates = { [weak self] in
+            guard let self else { return }
+            self.updater.checkNow()
+            self.showSettings()
+        }
+        statusController.canCheckForUpdates = { [weak self] in self?.updater.canCheck ?? false }
 
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.store.didWake() }
+            MainActor.assumeIsolated {
+                self?.store.didWake()
+                self?.updater.didWake()
+            }
         }
         store.start()
+        updater.start()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -96,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func showSettings() {
         if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(settings: settings, store: store)
+            settingsWindow = SettingsWindowController(settings: settings, store: store, updater: updater)
         }
         settingsWindow?.show()
     }

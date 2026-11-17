@@ -38,6 +38,7 @@ no Node, no Omarchy and no daemon of its own.
 - [Colours and thresholds](#colours-and-thresholds)
 - [Install](#install)
 - [Use](#use)
+- [Updates](#updates)
 - [Settings](#settings)
 - [Privacy and security](#privacy-and-security)
 - [Known limitations](#known-limitations)
@@ -503,8 +504,8 @@ only the [allowlisted variables](#automatic-selection) from your login shell.
 
 - **Left click** — open or close the panel.
 - **Right click** or **Control-click** — the menu: **Refresh Now** (`⌘R`),
-  **Settings…** (`⌘,`), **Launch at Login**, **About The Agentic Apple**,
-  **Quit The Agentic Apple** (`⌘Q`).
+  **Settings…** (`⌘,`), **Launch at Login**, **Check for Updates…**,
+  **About The Agentic Apple**, **Quit The Agentic Apple** (`⌘Q`).
 - **Middle click** — refresh every agent now.
 - **Opening the app again** (Finder, Spotlight, `open`) while it runs — opens
   the panel. Only one copy runs at a time.
@@ -522,6 +523,67 @@ In the panel:
 The panel header shows the number of agents, how many are hidden, when the
 numbers were read, and the highest limit currently in the menu bar.
 
+## Updates
+
+From 0.2.0 on, an installed copy keeps itself up to date from this repository's
+[GitHub Releases](https://github.com/crueber/the-agentic-apple/releases).
+
+> [!IMPORTANT]
+> **0.1.0 has no updater.** If you run 0.1.0, install 0.2.0 by hand once —
+> download the DMG and drag it over the old copy, or run
+> `git pull && scripts/install.sh` — and later releases arrive on their own.
+
+**How it works.** About 2 minutes after launch, and then every 6 hours, the app
+asks GitHub for the latest release. When that release is newer than the running
+copy it downloads `The-Agentic-Apple-<version>.dmg` and its signature
+`The-Agentic-Apple-<version>.dmg.sig`, verifies both, installs the new app in
+place and relaunches into it. Drafts and prereleases are ignored. Your
+settings and cache carry over.
+
+**What is verified before anything is installed:**
+
+- **The signature.** The `.sig` file is an Ed25519 signature over the exact
+  bytes of the disk image. It must verify against one of the public keys
+  compiled into the app (`Sources/AgenticCore/Update/UpdateKeys.swift`). There
+  is no setting, variable or file that adds a key or points the app at another
+  feed.
+- **The app inside the image.** Its bundle ID must be
+  `com.crueber.agentic-apple` and its version strictly newer than the running
+  one, so an older (validly signed) release can never be pushed back onto you.
+- **The download itself.** HTTPS only, from `github.com` and redirects to
+  `*.githubusercontent.com` (any other redirect is refused), no cookies or
+  credentials, at most 4 KB for the signature and 64 MB for the disk image.
+
+**How it installs.** The verified app is copied to a hidden staging folder
+beside the installed one and checked again; then the old copy is renamed to a
+hidden backup and the new one takes its place. If any step fails, the old copy
+is put back and keeps running. The new version removes the backup (and any
+leftover staging folder) when it starts.
+
+**Where it cannot update itself.** The updater only replaces an installed copy
+in a writable Applications folder (`/Applications` or `~/Applications`). A copy
+run from the disk image or from `dist/`, `swift run`, the `agentic-apple`
+command-line modes and the self-tests never update. Nor does a copy in a folder
+you cannot write to (for example `/Applications` from a standard account when
+an administrator installed it): there **Check for Updates…** reports the new
+version, and you install it by hand from the
+[latest release](https://github.com/crueber/the-agentic-apple/releases/latest).
+
+**The setting.** **Install updates automatically** (`autoUpdate`) is on by
+default. Turn it off and the app makes no background update checks at all;
+**Check for Updates…** in the menu still checks when you ask. To switch it off
+from a terminal (quit the app first, as for every `defaults` change):
+
+```bash
+osascript -e 'tell application id "com.crueber.agentic-apple" to quit'
+defaults write com.crueber.agentic-apple autoUpdate -bool false
+open -b com.crueber.agentic-apple
+```
+
+A copy built from source and installed with `scripts/install.sh` is an
+installed copy too: it updates to the published releases unless you turn
+`autoUpdate` off.
+
 ## Settings
 
 Open **Settings…** from the menu or the panel. It has five panes:
@@ -538,7 +600,8 @@ The usual editing shortcuts (`⌘C`, `⌘V`, `⌘X`, `⌘A`, `⌘Z`) work in the
 Settings text fields, and `⌘W` closes the window.
 
 Settings are stored in the user defaults domain `com.crueber.agentic-apple`,
-under the same keys as the Omarchy plugin. Every change in the window is saved
+under the same keys as the Omarchy plugin (plus `autoUpdate`, which is this
+app's own). Every change in the window is saved
 and applied at once. You can also script them with `defaults` — quit the app
 first, because it reads the domain only at launch:
 
@@ -577,6 +640,7 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
 | `grokHome` | string | `""` | Grok home; empty uses `$GROK_HOME` or `~/.grok` |
 | `botHome` | string | `""` | Grok Bot cache directory; empty tries the locations listed under [Grok](#grok) |
 | `authFile` | string | `""` | An OpenCode 1 `auth.json` holding the OpenRouter key; when set, only this file is read |
+| `autoUpdate` | bool | `true` | Check for and install signed updates in the background (see [Updates](#updates)); **Check for Updates…** works either way |
 
 **Launch at login** is managed by macOS (`SMAppService`) and also appears under
 **System Settings → General → Login Items**; toggle it from the app, not with
@@ -589,12 +653,26 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
   `openrouter.ai`; Claude's OAuth token only in one to `api.anthropic.com`. Both
   are re-read at request time and dropped afterwards. Error text from either
   service is scrubbed of the key before display.
-- **Network requests made by the app:** OpenRouter's `/api/v1/key` and
-  `/api/v1/credits`, and Anthropic's `/api/oauth/usage`. That is all. HTTPS
-  only, no redirects followed, no cookies, no URL cache, 15-second timeout,
-  1 MB response cap. `opencode` and the Codex app-server, when the app starts
-  them, make their own requests under their own credentials.
-- **No telemetry, no analytics, no update checks.**
+- **Network requests made by the app** go to three destinations:
+  1. OpenRouter's `/api/v1/key` and `/api/v1/credits`;
+  2. Anthropic's `/api/oauth/usage`;
+  3. GitHub, for [updates](#updates): `api.github.com` for this repository's
+     `releases/latest`, then the release's `.dmg` and `.dmg.sig` from
+     `github.com`, which redirects to `release-assets.githubusercontent.com`
+     (only `github.com` and `*.githubusercontent.com` are accepted).
+     These requests carry no key, token, cookie or identifier — only a generic
+     `User-Agent` — and are skipped entirely in the background when
+     `autoUpdate` is off.
+
+  The usage requests are HTTPS only, follow no redirects, and have a 15-second
+  timeout and a 1 MB response cap. Update downloads are HTTPS only, follow
+  redirects only to those GitHub hosts, and are capped at 4 KB (signature) and
+  64 MB (disk image).
+  None of them sends cookies or uses a URL cache. `opencode` and the Codex
+  app-server, when the app starts them, make their own requests under their
+  own credentials.
+- **No telemetry, no analytics.** The update check is the only request that is
+  not about your agents' usage, and it identifies nothing about you.
 - **Local reads:** Claude Code's Keychain item and credential file, profile and
   transcripts; Codex's `auth.json` (mode and key presence only) and
   `config.toml`; `~/.grok` logs and session ledgers (never `auth.json`); the
@@ -618,10 +696,17 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
   command output, files and responses are size- and time-limited.
 - **Executables run:** `/usr/bin/security`, `/usr/bin/sqlite3`, `opencode`,
   `codex`, `mise` (only `mise which codex`, offline) and, once per launch, your
-  login shell to read `PATH` and the allowlisted variables. Never through a shell string; arguments are
-  passed directly.
+  login shell to read `PATH` and the allowlisted variables. During an update:
+  `hdiutil` (attach and detach the downloaded image, read-only), `codesign`
+  (verify the new app), `ditto` (copy it), the new app's own
+  `agentic-apple --version`, `open`, and a fixed `/bin/sh` helper that
+  relaunches the app once the old copy has quit. Arguments are passed directly; no outside
+  text is ever put into a shell string.
 - The app writes nothing outside its cache directory and its defaults domain
-  (plus the optional login item).
+  (plus the optional login item) — except during an update: the download goes
+  to a private temporary folder (removed afterwards), and a hidden staging
+  copy and a backup of the old app are written beside its own bundle in the
+  Applications folder; the new version removes them when it starts.
 
 See [`SECURITY.md`](SECURITY.md) for reporting and the full data-flow notes.
 
@@ -725,7 +810,8 @@ defaults delete com.crueber.agentic-apple
 
 If you clicked **Always Allow** at the Keychain prompt, that permission belongs
 to `/usr/bin/security` on the Claude Code item; remove it in Keychain Access if
-you like. The app writes nothing else.
+you like. The app writes nothing else (an update's staging copy and backup are
+removed by the new version when it starts).
 
 ## Development
 
@@ -765,9 +851,25 @@ swift run agentic-apple --render-preview /tmp/previews
   and the DMG on a macOS runner for every push to `main` and every pull
   request, and uploads both (the bundle zipped with `ditto` so the executable
   bit survives) as artifacts.
-- **Releases:** push a tag like `v0.2.0` (after updating `VERSION` and
-  `CHANGELOG.md`); `.github/workflows/release.yml` runs the self-test, builds
-  the DMG and publishes a GitHub release with it attached.
+- **Releases are signed.** Once, before the first release, run
+  `scripts/generate-update-key.sh` yourself: it creates an Ed25519 key, keeps
+  the private half in `~/.config/the-agentic-apple/update-signing-key` (back it
+  up), stores it as the Actions secret `UPDATE_SIGNING_KEY`, and appends the
+  public half to `Sources/AgenticCore/Update/UpdateKeys.swift`. Commit that file.
+- **Cutting a release:**
+  1. bump `VERSION` (for example `0.2.1`) and add a `## 0.2.1 — <date>`
+     section to `CHANGELOG.md`;
+  2. commit and push to `main`;
+  3. `git tag v0.2.1 && git push origin v0.2.1`.
+
+  `.github/workflows/release.yml` then checks that the tag matches `VERSION`,
+  that the secret is set and that its public key is in `UpdateKeys.swift`;
+  runs the self-test; builds the DMG; signs it with
+  `scripts/sign-update.swift`; verifies the signature against the committed
+  trusted keys (so a mismatched key can never publish); and creates the GitHub
+  release with the DMG and its `.sig` attached in one step, using that
+  version's CHANGELOG section as the notes. Installed copies pick it up within
+  six hours.
 
 Layout:
 
@@ -778,6 +880,7 @@ Sources/AgenticCore/          pure logic, no AppKit
   Logic/                      meter state, ordering, OpenRouter cycle history, merge, schedule,
                               formatting, summaries, cache
   Providers/                  one collector per agent, plus Collector, Shell, HTTP, Sanitize
+  Update/                     signed updates: UpdateKeys (trusted Ed25519 public keys) and the updater
 Sources/AgenticApple/         the app (AppKit + SwiftUI)
   main.swift, App/            CLI modes, AppDelegate, Store (fetch lifecycle), settings, login item
   Bar/                        status item, bar view
@@ -788,7 +891,8 @@ Sources/AgenticApple/         the app (AppKit + SwiftUI)
   Shared/                     DisplayState, palette
 Sources/AgenticSelfTest/      offline test suites
 Tests/Fixtures/               synthetic fixtures per agent
-scripts/                      build-app, make-dmg, install, uninstall, test
+scripts/                      build-app, make-dmg, install, uninstall, test,
+                              generate-update-key, sign-update.swift
 docs/                         GitHub Pages site
 ```
 

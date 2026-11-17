@@ -6,10 +6,11 @@ import AgenticCore
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var store: Store
+    @ObservedObject var updater: Updater
 
     var body: some View {
         TabView {
-            GeneralPane(settings: settings)
+            GeneralPane(settings: settings, updater: updater)
                 .tabItem { Label("General", systemImage: "gearshape") }
             AgentsPane(settings: settings, store: store)
                 .tabItem { Label("Agents", systemImage: "square.stack.3d.up") }
@@ -20,7 +21,7 @@ struct SettingsView: View {
             AboutPane()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 520, height: 470)
+        .frame(width: 520, height: 540)
     }
 }
 
@@ -28,6 +29,7 @@ struct SettingsView: View {
 
 private struct GeneralPane: View {
     @ObservedObject var settings: AppSettings
+    @ObservedObject var updater: Updater
     @State private var loginError = false
 
     static let intervals: [(Int, String)] = [
@@ -64,6 +66,7 @@ private struct GeneralPane: View {
                     Text("Approve it in System Settings › General › Login Items.").font(.caption).foregroundStyle(.secondary)
                 }
             }
+            UpdatesSection(settings: settings, updater: updater)
         }
         .formStyle(.grouped)
     }
@@ -83,6 +86,42 @@ private struct GeneralPane: View {
     private var loginBinding: Binding<Bool> {
         Binding(get: { settings.launchAtLogin },
                 set: { settings.launchAtLogin = LoginItem.set($0) })
+    }
+}
+
+// MARK: - Updates
+
+private struct UpdatesSection: View {
+    @ObservedObject var settings: AppSettings
+    @ObservedObject var updater: Updater
+
+    var body: some View {
+        Section {
+            Toggle("Install updates automatically", isOn: $settings.autoUpdate)
+                .disabled(!updater.isSupported || !updater.isConfigured)
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                Text(updater.statusText(now: context.date))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 8) {
+                if let page = updater.releasePage {
+                    Link("Release Page", destination: page).font(.caption)
+                }
+                Spacer(minLength: 4)
+                if updater.offersInstall {
+                    Button("Install Now") { updater.installPending() }
+                }
+                Button("Check for Updates Now") { updater.checkNow() }
+                    .disabled(!updater.canCheck)
+            }
+        } header: {
+            Text("Updates")
+        } footer: {
+            Text("Updates come from this app's GitHub releases and are installed only when their signature verifies.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
     }
 }
 

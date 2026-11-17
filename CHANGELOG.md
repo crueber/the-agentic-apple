@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.2.0 — 2026-11-17
+
+Signed automatic updates.
+
+> **Coming from 0.1.0?** 0.1.0 has no updater. Install 0.2.0 by hand once
+> (download the DMG and drag it over the old copy, or `git pull &&
+> scripts/install.sh`); every later release then arrives on its own.
+
+- **Automatic updates from GitHub Releases.** The app checks for a new release
+  about 2 minutes after launch and then every 6 hours. A newer version is
+  downloaded, verified and installed, and the app relaunches into it.
+- **Every update is verified before it is installed:**
+  - the disk image must carry an Ed25519 signature (`.dmg.sig`) from a key
+    listed in the app itself (`UpdateKeys.swift`); there is no way to add a
+    key or change the feed at run time;
+  - the app inside the image must have the same bundle ID
+    (`com.crueber.agentic-apple`) and a strictly newer version than the
+    running copy, so an older signed release cannot be replayed.
+- **Installs only where it is safe:** the updater replaces an installed copy in
+  a writable Applications folder (`/Applications` or `~/Applications`). A copy
+  run from the disk image, from `dist/`, through `swift run` or the CLI is
+  never touched.
+- **Swap with rollback:** the new app is staged beside the old one, the old
+  one is moved aside as a backup, and if anything fails the backup is put
+  back. The app then relaunches, and the new version removes the backup.
+- Downloads are HTTPS only from `github.com` / `*.githubusercontent.com`
+  (other redirects are refused) and capped at 64 MB for the disk image.
+- **Install updates automatically** setting (`autoUpdate`, on by default).
+  When it is off, nothing is checked in the background; **Check for
+  Updates…** in the menu still checks by hand.
+- Releases are now signed in CI (`scripts/sign-update.swift`) and the
+  signature is verified against the committed trusted keys before anything is
+  published; the DMG and its `.sig` are uploaded together.
+- `scripts/generate-update-key.sh` sets up the signing key once.
+
 ## 0.1.0 — 2026-11-17
 
 First release: a native macOS port of the Omarchy plugin
