@@ -337,7 +337,7 @@ Schedule and caching:
   next one waits until it has really finished.
 - **Finding tools:** an app launched from Finder or at login does not inherit
   your shell's `PATH`. Once per launch the app runs your login shell
-  (`$SHELL -l -i -c`, 6-second timeout) to read its `PATH` and the
+  (`$SHELL -l -i -c`, in its own session and bounded by a timeout) to read its `PATH` and the
   [allowlisted variables](#automatic-selection), then adds
   `~/.local/bin`, mise shims, `~/.bun/bin`, `~/.npm-global/bin`,
   `~/.opencode/bin`, `~/.cargo/bin`, `/opt/homebrew/bin` and `/usr/local/bin`.
@@ -708,7 +708,7 @@ the app.
 
 ```bash
 scripts/test.sh                 # offline self-test (every suite)
-scripts/test.sh Claude          # one suite: Logic, OpenRouter, OpenCode, Grok, Codex, Claude
+scripts/test.sh Claude          # one suite: Logic, Shell, OpenRouter, OpenCode, Grok, Codex, Claude
 scripts/build-app.sh            # dist/The Agentic Apple.app, ad-hoc signed
 scripts/install.sh --no-open    # build and install to ~/Applications
 swift run agentic-apple --fixture --text
