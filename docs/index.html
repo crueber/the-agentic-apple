@@ -193,7 +193,14 @@
   <section id="install" class="section" aria-labelledby="install-title">
     <div class="wrap narrow">
       <h2 id="install-title">Install</h2>
-      <p class="lede">Built from source with SwiftPM. You need macOS&nbsp;14 Sonoma or later and the Command Line Tools; Xcode is not required.</p>
+      <p class="lede">You need macOS&nbsp;14 Sonoma or later. Download the disk image, or build it from source.</p>
+
+      <h3>Download</h3>
+      <p><a class="btn btn-primary" href="https://github.com/crueber/the-agentic-apple/releases/latest">Download the DMG</a></p>
+      <p>Open the disk image and drag <strong>The Agentic Apple</strong> onto <strong>Applications</strong>. On its first launch from there it turns on <strong>Launch at Login</strong>, so it comes back after every restart; switch that off from its menu or Settings if you prefer.</p>
+
+      <h3>Build from source</h3>
+      <p>With SwiftPM and the Command Line Tools; Xcode is not required.</p>
 
       <div class="code">
         <div class="code-bar"><span>Terminal</span><button type="button" class="copy" data-copy="git clone https://github.com/crueber/the-agentic-apple.git &amp;&amp; cd the-agentic-apple &amp;&amp; scripts/install.sh">Copy</button></div>
@@ -201,7 +208,7 @@
   &amp;&amp; cd the-agentic-apple &amp;&amp; scripts/install.sh</code></pre>
       </div>
 
-      <p>The script builds the app, installs it to <code>~/Applications</code>, links the <code>agentic-apple</code> command into <code>~/.local/bin</code> and opens it. No Command Line Tools yet?</p>
+      <p>The script builds the app, installs it to <code>~/Applications</code>, links the <code>agentic-apple</code> command into <code>~/.local/bin</code> and opens it (which turns on Launch at Login, as above). No Command Line Tools yet?</p>
 
       <div class="code">
         <div class="code-bar"><span>Terminal</span><button type="button" class="copy" data-copy="xcode-select --install">Copy</button></div>
@@ -214,7 +221,7 @@
         <h3 id="gk-title">The first launch</h3>
         <p>The app is ad-hoc signed rather than notarised by Apple, so macOS may warn you the first time it opens. If it refuses to open, go to <strong>System Settings &rsaquo; Privacy &amp; Security</strong>, scroll down and choose <strong>Open Anyway</strong> once.</p>
         <blockquote class="author">
-          <p>"If someone wants to pay for my Apple Developer Account, I'm happy to get rid of the annoying nag when installing this tool."</p>
+          <p>Hey! It's <a href="https://github.com/crueber">@crueber</a>. If someone wants to pay for my Apple Developer Account, I'm happy to get rid of the annoying nag when installing this tool.</p>
         </blockquote>
         <p><a class="sponsor" href="https://github.com/sponsors/crueber"><span aria-hidden="true">&#9825;</span> Sponsor crueber on GitHub</a></p>
       </aside>

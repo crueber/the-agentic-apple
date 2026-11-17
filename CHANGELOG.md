@@ -40,10 +40,16 @@ First release: a native macOS port of the Omarchy plugin
   bun or cargo, with per-tool overrides in Settings.
 - Settings window (General, Agents, Thresholds, Advanced, About) over the same
   keys as the Omarchy plugin, in the defaults domain
-  `com.crueber.agentic-apple`. Launch at login through `SMAppService`.
+  `com.crueber.agentic-apple`. Launch at login through `SMAppService`: an
+  installed copy turns it on at its first launch and re-registers itself if
+  macOS loses the registration, so the app survives restarts; switching it
+  off is remembered.
 - Command-line modes on the app's executable: `--text`, `--json`,
   `--render-preview <dir>`, `--version`, `--help`; `--fixture` for invented
   data.
+- An installable disk image (`scripts/make-dmg.sh`): the app plus an
+  Applications shortcut, attached to each GitHub release by the release
+  workflow.
 - `scripts/install.sh`, `scripts/uninstall.sh`, `scripts/build-app.sh` and
   `scripts/test.sh`: builds with the Command Line Tools alone, ad-hoc signed.
 - Offline self-test executable with synthetic fixtures for every agent, run in

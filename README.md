@@ -362,6 +362,21 @@ defaults. Agent marks always use the menu bar's own colour.
 
 ## Install
 
+### Download the DMG
+
+Grab `The-Agentic-Apple-<version>.dmg` from the
+[latest release](https://github.com/crueber/the-agentic-apple/releases/latest),
+open it, and drag **The Agentic Apple** onto **Applications**. Then open it from
+Applications (see [First launch and Gatekeeper](#first-launch-and-gatekeeper) —
+a downloaded copy needs one extra click). The command-line helper is inside the
+app; link it if you want it on your `PATH`:
+
+```bash
+ln -sf "/Applications/The Agentic Apple.app/Contents/MacOS/agentic-apple" ~/.local/bin/agentic-apple
+```
+
+### Build from source
+
 ```bash
 git clone https://github.com/crueber/the-agentic-apple && cd the-agentic-apple && scripts/install.sh
 ```
@@ -376,8 +391,18 @@ git clone https://github.com/crueber/the-agentic-apple && cd the-agentic-apple &
 - opens the app (pass `--no-open` to skip).
 
 The app lives in the menu bar only — no Dock icon, no main window. Its icon
-(`Resources/AppIcon.icns`) shows in Finder, the About window and Login Items. To start it
-at every login, turn on **Launch at Login** from its menu or Settings.
+(`Resources/AppIcon.icns`) shows in Finder, the About window and Login Items.
+
+### Starting at login
+
+The first time an installed copy opens (from `/Applications` or
+`~/Applications`), it turns on **Launch at Login**, so it is back in the menu
+bar after every restart. Switch it off from the menu or **Settings → General**
+and that choice sticks. If the registration is lost — after a reinstall or a
+move — the app re-registers itself at its next launch as long as the setting is
+on. A copy run straight from the disk image or from `dist/` never registers
+itself, since that path would be gone after a restart. Disabling the app under
+**System Settings → General → Login Items** is respected too.
 
 ### Requirements
 
@@ -416,9 +441,10 @@ lets it through:
   ```
 
 > [!NOTE]
-> **From the author:** [*"If someone wants to pay for my Apple Developer Account, I'm happy to get rid of the annoying nag when installing this tool."*](https://github.com/sponsors/crueber)
-> — the **Sponsor** button at the top of this repository goes to the same
-> place.
+> Hey! It's @crueber. If someone wants to pay for my Apple Developer Account,
+> I'm happy to get rid of the annoying nag when installing this tool.
+> [Sponsor me on GitHub](https://github.com/sponsors/crueber) — the **Sponsor**
+> button at the top of this repository goes to the same place.
 
 ### The Keychain prompt
 
@@ -712,6 +738,7 @@ scripts/test.sh                 # offline self-test (every suite)
 scripts/test.sh Claude          # one suite: Logic, Shell, OpenRouter, OpenCode, Grok, Codex, Claude
 scripts/build-app.sh            # dist/The Agentic Apple.app, ad-hoc signed
 scripts/install.sh --no-open    # build and install to ~/Applications
+scripts/make-dmg.sh             # dist/The-Agentic-Apple-<version>.dmg
 swift run agentic-apple --fixture --text
 swift run agentic-apple --render-preview /tmp/previews
 ```
@@ -735,9 +762,12 @@ swift run agentic-apple --render-preview /tmp/previews
 - `build-app.sh` honours `VERSION` (default: the `VERSION` file),
   `BUILD_NUMBER` and `SCRATCH_PATH`.
 - CI (`.github/workflows/ci.yml`) runs the self-test and builds the app bundle
-  on a macOS runner for every push to `main` and every pull request, and
-  uploads the bundle, zipped with `ditto` so the executable bit survives, as an
-  artifact.
+  and the DMG on a macOS runner for every push to `main` and every pull
+  request, and uploads both (the bundle zipped with `ditto` so the executable
+  bit survives) as artifacts.
+- **Releases:** push a tag like `v0.2.0` (after updating `VERSION` and
+  `CHANGELOG.md`); `.github/workflows/release.yml` runs the self-test, builds
+  the DMG and publishes a GitHub release with it attached.
 
 Layout:
 
@@ -758,7 +788,7 @@ Sources/AgenticApple/         the app (AppKit + SwiftUI)
   Shared/                     DisplayState, palette
 Sources/AgenticSelfTest/      offline test suites
 Tests/Fixtures/               synthetic fixtures per agent
-scripts/                      build-app, install, uninstall, test
+scripts/                      build-app, make-dmg, install, uninstall, test
 docs/                         GitHub Pages site
 ```
 

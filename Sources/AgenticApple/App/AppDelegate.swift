@@ -22,7 +22,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         installMainMenu()
         settings = AppSettings()
-        if LoginItem.isAvailable { settings.launchAtLogin = LoginItem.isEnabled }
+        if LoginItem.isAvailable {
+            LoginItem.ensureOnLaunch(defaults: AppInfo.defaults, key: AppSettings.Keys.launchAtLogin)
+            settings.launchAtLogin = LoginItem.isEnabled
+        }
         if FixtureCollectors.enabled {
             // Dev/demo mode: invented numbers, a throwaway cache, no real collectors.
             store = Store(settings: settings, cacheURL: FixtureCollectors.cacheURL,

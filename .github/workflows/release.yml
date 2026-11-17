@@ -1,0 +1,32 @@
+name: Release
+
+# Push a tag like v0.1.0 to build the DMG and publish a GitHub release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Self-test (offline)
+        run: swift run agentic-selftest
+      - name: Build DMG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}" scripts/make-dmg.sh
+          ls -la dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NOTES="$(awk -v v="$VERSION" '$0 ~ "^## \\[?"v"\\]?" {f=1; next} /^## / && f {exit} f' CHANGELOG.md)"
+          gh release create "$GITHUB_REF_NAME" "dist/The-Agentic-Apple-$VERSION.dmg" \
+            --title "The Agentic Apple $VERSION" \
+            --notes "${NOTES:-See CHANGELOG.md.}"

@@ -59,7 +59,7 @@ private struct GeneralPane: View {
                 Toggle("Launch at login", isOn: loginBinding)
                     .disabled(!LoginItem.isAvailable)
                 if !LoginItem.isAvailable {
-                    Text("Available when running The Agentic Apple.app.").font(.caption).foregroundStyle(.secondary)
+                    Text("Available once The Agentic Apple is in your Applications folder.").font(.caption).foregroundStyle(.secondary)
                 } else if LoginItem.needsApproval {
                     Text("Approve it in System Settings › General › Login Items.").font(.caption).foregroundStyle(.secondary)
                 }

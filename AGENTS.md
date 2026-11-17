@@ -57,7 +57,8 @@ from Omarchy's `omarchy-agent-usage-claude` / `omarchy-agent-usage-codex`
   suite per file, registered in `main.swift`.
 - `Tests/Fixtures/<agent>/` — synthetic fixtures, including a fake Codex
   app-server script.
-- `scripts/` — `build-app.sh`, `install.sh`, `uninstall.sh`, `test.sh`.
+- `scripts/` — `build-app.sh`, `make-dmg.sh`, `install.sh`, `uninstall.sh`,
+  `test.sh`. `.github/workflows/release.yml` publishes the DMG on a `v*` tag.
 - `docs/` — the GitHub Pages site; `docs/images/` comes from
   `--render-preview`.
 
@@ -124,8 +125,11 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
    `providerOrder`, `refreshIntervalSec`, `warnPercent`, `criticalPercent`,
    `warningColor`, `criticalColor`, `showActivity`, `opencodeCommand`,
    `codexCommand`, `grokHome`, `botHome`, `authFile`). Do not rename them.
-   `launchAtLogin` only mirrors `SMAppService`; `--unregister-login-item`
-   removes it (used by `scripts/uninstall.sh`).
+   `launchAtLogin` mirrors `SMAppService` and records the user's choice:
+   `LoginItem.ensureOnLaunch` turns it on at an installed copy's first launch
+   and re-registers when the setting is on but macOS lost the item; never from
+   a DMG, translocated or `dist/` path. `--unregister-login-item` removes it
+   (used by `scripts/uninstall.sh`).
 10. **One defaults domain.** `AppInfo.defaults` makes `swift run` and the CLI
     read `com.crueber.agentic-apple`, the same domain as the bundled app.
 11. **Schedule** (`Logic/Schedule.swift`): automatic every
