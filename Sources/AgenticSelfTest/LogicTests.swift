@@ -40,6 +40,7 @@ enum LogicTests {
         text(t)
         schedule(t)
         merge(t)
+        mergePaused(t)
     }
 
     // MARK: order and visibility
@@ -442,4 +443,42 @@ enum LogicTests {
         // A clean fresh entry replaces the old one entirely.
         t.equal(ProviderMerge.merge(previous: [good], fresh: [otherGood]), [otherGood])
     }
+
+    // MARK: paused sign-in keeps stale limits
+
+    static func mergePaused(_ t: TestRun) {
+        let good = provider(.claude, limits: [limit("session", 18, now + day), limit("weekly", 62, now + 5 * day)])
+        var expired = provider(.claude, tier: "", limits: [])
+        expired.status = "Sign-in expired"
+        expired.hint = "run claude auth login"
+        let merged = ProviderMerge.merge(previous: [good], fresh: [expired])[0]
+        t.equal(merged.limits.map(\.percent), [18, 62], "expired sign-in keeps the previous limits")
+        t.check(merged.limits.allSatisfy(\.stale), "kept limits are marked stale")
+        t.equal(merged.status, "Sign-in expired")
+        t.equal(merged.hint, "run claude auth login")
+        t.equal(merged.tier, "Max 5x", "empty fresh tier keeps the old one")
+        t.equal(merged.error, "")
+        t.check(merged.available, "still available")
+
+        var paused = expired
+        paused.status = "Limits paused"
+        paused.tier = "Pro"
+        let p2 = ProviderMerge.merge(previous: [good], fresh: [paused])[0]
+        t.equal(p2.tier, "Pro")
+        t.check(p2.limits.count == 2 && p2.limits.allSatisfy(\.stale), "limits paused keeps stale limits")
+
+        // Chained: a second expired read keeps the stale limits (previous is now the merged one).
+        let p3 = ProviderMerge.merge(previous: [merged], fresh: [expired])[0]
+        t.equal(p3.limits.count, 2)
+        // Other statuses, no previous, previous without limits: fresh passes through.
+        var waiting = expired
+        waiting.status = "Waiting for auth"
+        t.equal(ProviderMerge.merge(previous: [good], fresh: [waiting])[0], waiting)
+        t.equal(ProviderMerge.merge(previous: [], fresh: [expired])[0], expired)
+        t.equal(ProviderMerge.merge(previous: [provider(.claude)], fresh: [expired])[0], expired)
+        // Fresh limits after sign-in returns replace the stale ones.
+        let back = provider(.claude, limits: [limit("session", 3)])
+        t.equal(ProviderMerge.merge(previous: [merged], fresh: [back])[0], back)
+    }
 }
+
