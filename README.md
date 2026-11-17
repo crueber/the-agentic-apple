@@ -723,7 +723,10 @@ swift run agentic-apple --render-preview /tmp/previews
   `HOME`, fake `opencode`/`codex` scripts and an injected HTTP client, so no
   real account, Keychain or network is touched.
 - **`--fixture`** (or `AGENTIC_APPLE_FIXTURE=1`) swaps the real collectors for
-  the invented preview data in `--text` and `--json`.
+  the invented preview data in `--text` and `--json`. `AGENTIC_APPLE_FIXTURE=1`
+  also runs the menu bar app itself on that data (reset times follow the real
+  clock, and the cache goes to a temporary directory, never your real one):
+  `AGENTIC_APPLE_FIXTURE=1 "dist/The Agentic Apple.app/Contents/MacOS/agentic-apple"`.
 - **`--render-preview <dir>`** writes the bar, the panel and the composite
   preview, light and dark, at @2x, from the same invented data, plus extra
   states (empty panel, bar styles, edge cases). The images in `docs/images/`

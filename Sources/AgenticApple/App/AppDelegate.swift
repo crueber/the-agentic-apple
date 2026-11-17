@@ -23,7 +23,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installMainMenu()
         settings = AppSettings()
         if LoginItem.isAvailable { settings.launchAtLogin = LoginItem.isEnabled }
-        store = Store(settings: settings)
+        if FixtureCollectors.enabled {
+            // Dev/demo mode: invented numbers, a throwaway cache, no real collectors.
+            store = Store(settings: settings, cacheURL: FixtureCollectors.cacheURL,
+                          makeCollector: { FixtureCollectors.collector() })
+        } else {
+            store = Store(settings: settings)
+        }
         statusController = StatusItemController(store: store)
         statusController.openSettings = { [weak self] in self?.showSettings() }
         statusController.showAbout = { [weak self] in self?.showAbout() }
