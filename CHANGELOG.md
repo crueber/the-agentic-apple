@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.0 — 2026-11-17
+
+General availability.
+
+The Agentic Apple is now considered stable: the meters, the panel, settings,
+launch at login and signed automatic updates make up the supported 1.x feature
+set, and the settings keys, CLI flags (`--text`, `--json`) and cache locations
+are stable across 1.x releases.
+
+- First release delivered by the app's own updater: installed copies of 0.2.0
+  update themselves to 1.0.0.
+- Releases build on GitHub's `macos-latest` runners.
+
+> **Coming from 0.1.0?** Install 1.0.0 by hand once (0.1.0 has no updater);
+> later releases arrive on their own.
+
 ## 0.2.0 — 2026-11-17
 
 Signed automatic updates.
