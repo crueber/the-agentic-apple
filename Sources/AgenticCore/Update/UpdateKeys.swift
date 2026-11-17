@@ -6,5 +6,6 @@ import Foundation
 /// There is deliberately no runtime override.
 public enum UpdateKeys {
     public static let trusted: [String] = [
+        "JRtulDSNOQf3jmvoVbyM6Di/m8TgALFS7U2o45sRnsQ=",
     ]
 }
