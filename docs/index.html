@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Agentic Apple</title>
+<meta name="description" content="A native macOS menu bar app that shows how much of each AI agent's limits you have used: OpenRouter, OpenCode, Grok, Codex and Claude, each with its own mark and tiny meters.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://crueber.github.io/the-agentic-apple/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Agentic Apple">
+<meta property="og:title" content="The Agentic Apple">
+<meta property="og:description" content="Your AI agents' limits, at a glance in the macOS menu bar.">
+<meta property="og:url" content="https://crueber.github.io/the-agentic-apple/">
+<meta property="og:image" content="https://crueber.github.io/the-agentic-apple/images/panel-dark.png">
+<meta property="og:image:alt" content="The Agentic Apple panel showing limit meters for five AI agents">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The Agentic Apple">
+<meta name="twitter:description" content="Your AI agents' limits, at a glance in the macOS menu bar.">
+<meta name="twitter:image" content="https://crueber.github.io/the-agentic-apple/images/panel-dark.png">
+<link rel="stylesheet" href="style.css">
+<script>
+  // Hide a screenshot figure whose image is not there yet, and the whole
+  // gallery when none are.
+  function shotMissing(img) {
+    var fig = img.closest('figure');
+    if (fig) fig.hidden = true;
+    var gallery = document.getElementById('screenshots');
+    if (gallery && !gallery.querySelector('figure:not([hidden])')) gallery.hidden = true;
+  }
+</script>
+</head>
+<body>
+
+<svg width="0" height="0" class="defs" aria-hidden="true" focusable="false">
+  <symbol id="m-openrouter" viewBox="0 0 401.4 293.7">
+    <path fill="currentColor" fill-rule="evenodd" d="M303.9475,17.19926c42.79734,0,77.48933,34.69327,77.48933,77.48933s-34.69199,77.48933-77.48933,77.48933l76.86166,76.86244c9.76367,9.76313,2.84903,26.45667-10.95697,26.45667h-220.88335c-71.32686,0-129.14889-57.82202-129.14889-129.14889S77.64197,17.19926,148.96884,17.19926h154.97866ZM148.96884,68.85881c-42.79607,0-77.48933,34.69327-77.48933,77.48933s34.69327,77.48933,77.48933,77.48933,77.48933-34.69327,77.48933-77.48933-34.69327-77.48933-77.48933-77.48933Z"/>
+  </symbol>
+  <symbol id="m-opencode" viewBox="0 0 16 20">
+    <path fill="currentColor" fill-rule="evenodd" d="M0 0H16V20H0Z M4 4V16H12V4Z"/>
+    <rect x="4" y="8" width="8" height="8" fill="currentColor" opacity=".45"/>
+  </symbol>
+  <symbol id="m-grok" viewBox="40 40 432 432">
+    <path fill="currentColor" d="M210.484 312.759L343.465 210.383C349.984 205.364 359.302 207.322 362.408 215.117C378.758 256.231 371.454 305.64 338.925 339.563C306.397 373.487 261.137 380.927 219.768 363.983L174.577 385.803C239.394 432.008 318.104 420.581 367.289 369.251C406.303 328.564 418.386 273.104 407.088 223.091L407.19 223.198C390.807 149.726 411.218 120.359 453.03 60.3072C454.02 58.8833 455.01 57.4595 456 56L400.978 113.382V113.204L210.45 312.794Z"/>
+    <path fill="currentColor" d="M183.042 337.641C136.519 291.294 144.54 219.567 184.236 178.203C213.59 147.59 261.683 135.096 303.666 153.464L348.755 131.75C340.632 125.627 330.221 119.042 318.275 114.414C264.277 91.2407 199.63 102.774 155.735 148.516C113.513 192.549 100.236 260.254 123.036 318.027C140.069 361.206 112.148 391.748 84.0229 422.575C74.0561 433.503 64.0553 444.431 56 456L183.007 337.677Z"/>
+  </symbol>
+  <symbol id="m-codex" viewBox="0 0 24 24">
+    <path fill="currentColor" fill-rule="evenodd" d="M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z"/>
+  </symbol>
+  <symbol id="m-claude" viewBox="0 0 256 257">
+    <path fill="currentColor" d="m50.228 170.321 50.357-28.257.843-2.463-.843-1.361h-2.462l-8.426-.518-28.775-.778-24.952-1.037-24.175-1.296-6.092-1.297L0 125.796l.583-3.759 5.12-3.434 7.324.648 16.202 1.101 24.304 1.685 17.629 1.037 26.118 2.722h4.148l.583-1.685-1.426-1.037-1.101-1.037-25.147-17.045-27.22-18.017-14.258-10.37-7.713-5.25-3.888-4.925-1.685-10.758 7-7.713 9.397.649 2.398.648 9.527 7.323 20.35 15.75L94.817 91.9l3.889 3.24 1.555-1.102.195-.777-1.75-2.917-14.453-26.118-15.425-26.572-6.87-11.018-1.814-6.61c-.648-2.723-1.102-4.991-1.102-7.778l7.972-10.823L71.42 0 82.05 1.426l4.472 3.888 6.61 15.101 10.694 23.786 16.591 32.34 4.861 9.592 2.592 8.879.973 2.722h1.685v-1.556l1.36-18.211 2.528-22.36 2.463-28.776.843-8.1 4.018-9.722 7.971-5.25 6.222 2.981 5.12 7.324-.713 4.73-3.046 19.768-5.962 30.98-3.889 20.739h2.268l2.593-2.593 10.499-13.934 17.628-22.036 7.778-8.749 9.073-9.657 5.833-4.601h11.018l8.1 12.055-3.628 12.443-11.342 14.388-9.398 12.184-13.48 18.147-8.426 14.518.778 1.166 2.01-.194 30.46-6.481 16.462-2.982 19.637-3.37 8.88 4.148.971 4.213-3.5 8.62-20.998 5.184-24.628 4.926-36.682 8.685-.454.324.519.648 16.526 1.555 7.065.389h17.304l32.21 2.398 8.426 5.574 5.055 6.805-.843 5.184-12.962 6.611-17.498-4.148-40.83-9.721-14-3.5h-1.944v1.167l11.666 11.406 21.387 19.314 26.767 24.887 1.36 6.157-3.434 4.86-3.63-.518-23.526-17.693-9.073-7.972-20.545-17.304h-1.36v1.814l4.73 6.935 25.017 37.59 1.296 11.536-1.814 3.76-6.481 2.268-7.13-1.297-14.647-20.544-15.1-23.138-12.185-20.739-1.49.843-7.194 77.448-3.37 3.953-7.778 2.981-6.48-4.925-3.436-7.972 3.435-15.749 4.148-20.544 3.37-16.333 3.046-20.285 1.815-6.74-.13-.454-1.49.194-15.295 20.999-23.267 31.433-18.406 19.702-4.407 1.75-7.648-3.954.713-7.064 4.277-6.286 25.47-32.405 15.36-20.092 9.917-11.6-.065-1.686h-.583L44.07 198.125l-12.055 1.555-5.185-4.86.648-7.972 2.463-2.593 20.35-13.999-.064.065Z"/>
+  </symbol>
+  <symbol id="m-robot" viewBox="0 0 24 24">
+    <path fill="currentColor" fill-rule="evenodd" d="M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M7.5,13A2.5,2.5 0 0,0 5,15.5A2.5,2.5 0 0,0 7.5,18A2.5,2.5 0 0,0 10,15.5A2.5,2.5 0 0,0 7.5,13M16.5,13A2.5,2.5 0 0,0 14,15.5A2.5,2.5 0 0,0 16.5,18A2.5,2.5 0 0,0 19,15.5A2.5,2.5 0 0,0 16.5,13Z"/>
+  </symbol>
+  <symbol id="grip" viewBox="0 0 14 10">
+    <path d="M1 1.5h12M1 5h12M1 8.5h12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+  </symbol>
+</svg>
+
+<header class="site-nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="The Agentic Apple, back to top">
+      <img src="favicon.svg" alt="" width="22" height="22">
+      <span>The Agentic Apple</span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#install" class="nav-opt">Install</a>
+      <a href="#features" class="nav-opt">Features</a>
+      <a href="#privacy" class="nav-opt">Privacy</a>
+      <a href="https://github.com/crueber/the-agentic-apple">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <p class="eyebrow">A native menu bar app for macOS</p>
+      <h1 id="hero-title">The Agentic Apple</h1>
+      <p class="pitch">Every AI agent's limits, one glance away in your menu bar.</p>
+      <p class="hero-actions">
+        <a class="btn btn-primary" href="#install">Install</a>
+        <a class="btn btn-link" href="https://github.com/crueber/the-agentic-apple">View on GitHub <span aria-hidden="true">&rsaquo;</span></a>
+      </p>
+    </div>
+
+    <div class="wrap">
+      <div class="desktop" role="img" aria-label="Illustration: a macOS menu bar where five agent marks (OpenRouter, OpenCode, Grok, Codex, Claude) each sit beside tiny stacked meters, with the app's panel open below showing per-window percentages, reset countdowns, show switches and drag handles. All numbers are invented.">
+        <div class="menubar">
+          <div class="mb-left">
+            <span class="mb-app">Finder</span>
+            <span class="mb-menu">File</span><span class="mb-menu">Edit</span><span class="mb-menu">View</span><span class="mb-menu">Go</span><span class="mb-menu">Window</span><span class="mb-menu">Help</span>
+          </div>
+          <div class="mb-right">
+            <div class="status-item">
+              <span class="bi"><svg class="mk mk-or"><use href="#m-openrouter"/></svg><span class="meters"><i style="--p:62"></i></span></span>
+              <span class="bi"><svg class="mk mk-oc"><use href="#m-opencode"/></svg><span class="meters"><i style="--p:24"></i><i style="--p:41"></i><i style="--p:9"></i></span></span>
+              <span class="bi"><svg class="mk mk-sq"><use href="#m-grok"/></svg><span class="meters"><i style="--p:41"></i><i style="--p:43"></i></span></span>
+              <span class="bi"><svg class="mk mk-sq"><use href="#m-codex"/></svg><span class="meters"><i style="--p:12"></i><i style="--p:34"></i><i style="--p:5"></i></span></span>
+              <span class="bi"><svg class="mk mk-sq"><use href="#m-claude"/></svg><span class="meters"><i style="--p:18"></i><i style="--p:62"></i><i style="--p:7"></i></span></span>
+
+              <div class="panel">
+                <div class="p-hero">
+                  <svg class="p-robot"><use href="#m-robot"/></svg>
+                  <div class="p-title"><b>The Agentic Apple</b><small>5 agents &middot; just now</small></div>
+                  <span class="p-badge">62%</span>
+                  <svg class="p-refresh" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.46-3.54M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+
+                <div class="p-agent">
+                  <div class="p-head">
+                    <svg class="mk mk-or"><use href="#m-openrouter"/></svg>
+                    <div class="p-name"><b>OpenRouter</b><small>key …demo · Key limit</small></div>
+                    <span class="p-pct">62%</span><span class="sw on"></span><svg class="grip"><use href="#grip"/></svg>
+                  </div>
+                  <div class="p-limit"><span>Key limit</span><span>62%</span><i class="bar" style="--p:62"></i><small>$12.40 of $20.00 &middot; Resets in 21d 0h</small></div>
+                </div>
+
+                <div class="p-agent">
+                  <div class="p-head">
+                    <svg class="mk mk-oc"><use href="#m-opencode"/></svg>
+                    <div class="p-name"><b>OpenCode</b><small>demo · Go</small></div>
+                    <span class="p-pct">41%</span><span class="sw on"></span><svg class="grip"><use href="#grip"/></svg>
+                  </div>
+                  <div class="p-limit"><span>5-hour session</span><span>24%</span><i class="bar" style="--p:24"></i><small>Resets in 4h 48m</small></div>
+                  <div class="p-limit"><span>Weekly (7-day)</span><span>41%</span><i class="bar" style="--p:41"></i><small>Resets in 4d 0h</small></div>
+                  <div class="p-limit"><span>Monthly</span><span>9%</span><i class="bar" style="--p:9"></i><small>Resets in 18d 0h</small></div>
+                </div>
+
+                <div class="p-agent">
+                  <div class="p-head">
+                    <svg class="mk mk-sq"><use href="#m-grok"/></svg>
+                    <div class="p-name"><b>Grok</b><small>SuperGrok</small></div>
+                    <span class="p-pct">42.7%</span><span class="sw on"></span><svg class="grip"><use href="#grip"/></svg>
+                  </div>
+                  <div class="p-limit"><span>Weekly limit</span><span>41%</span><i class="bar" style="--p:41"></i><small>Resets in 4d 0h</small></div>
+                  <div class="p-limit"><span>Grok Bot weekly</span><span>42.7%</span><i class="bar" style="--p:43"></i><small>Resets in 3d 0h</small></div>
+                </div>
+
+                <div class="p-agent">
+                  <div class="p-head">
+                    <svg class="mk mk-sq"><use href="#m-codex"/></svg>
+                    <div class="p-name"><b>Codex</b><small>Plus</small></div>
+                    <span class="p-pct">34%</span><span class="sw on"></span><svg class="grip"><use href="#grip"/></svg>
+                  </div>
+                  <div class="p-limit"><span>Session (5-hour)</span><span>12%</span><i class="bar" style="--p:12"></i><small>Resets in 7h 12m</small></div>
+                  <div class="p-limit"><span>Weekly (7-day)</span><span>34%</span><i class="bar" style="--p:34"></i><small>Resets in 5d 0h</small></div>
+                </div>
+              </div>
+            </div>
+            <svg class="mb-ico mb-wifi" viewBox="0 0 20 16" aria-hidden="true"><path d="M10 14.2l2.3-2.6a3.4 3.4 0 0 0-4.6 0zM4.6 8.4l1.6 1.8a5.7 5.7 0 0 1 7.6 0l1.6-1.8a8.1 8.1 0 0 0-10.8 0zM1.5 5l1.6 1.8a10.4 10.4 0 0 1 13.8 0L18.5 5a12.8 12.8 0 0 0-17 0z" fill="currentColor"/></svg>
+            <svg class="mb-ico mb-cc" viewBox="0 0 20 16" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2.5" width="16" height="4.5" rx="2.25"/><rect x="2" y="9" width="16" height="4.5" rx="2.25"/></g><circle cx="13.6" cy="4.75" r="1.4" fill="currentColor"/><circle cx="6.4" cy="11.25" r="1.4" fill="currentColor"/></svg>
+            <span class="mb-clock"><span class="mb-date">Tue 17 Nov&nbsp;&nbsp;</span>9:41</span>
+          </div>
+        </div>
+        <div class="loupe" aria-hidden="true">
+          <span class="bi"><svg class="mk mk-or"><use href="#m-openrouter"/></svg><span class="meters"><i style="--p:62"></i></span></span>
+          <span class="bi"><svg class="mk mk-oc"><use href="#m-opencode"/></svg><span class="meters"><i style="--p:24"></i><i style="--p:41"></i><i style="--p:9"></i></span></span>
+          <span class="bi"><svg class="mk mk-sq"><use href="#m-grok"/></svg><span class="meters"><i style="--p:41"></i><i style="--p:43"></i></span></span>
+          <span class="bi"><svg class="mk mk-sq"><use href="#m-codex"/></svg><span class="meters"><i style="--p:12"></i><i style="--p:34"></i><i style="--p:5"></i></span></span>
+          <span class="bi"><svg class="mk mk-sq"><use href="#m-claude"/></svg><span class="meters"><i style="--p:18"></i><i style="--p:62"></i><i style="--p:7"></i></span></span>
+        </div>
+      </div>
+      <p class="caption">Illustration with invented numbers. The meters are coloured by each window's own state; the marks never are.</p>
+    </div>
+  </section>
+
+  <section id="screenshots" class="section shots" aria-labelledby="shots-title">
+    <div class="wrap">
+      <h2 id="shots-title" class="visually-hidden">Screenshots</h2>
+      <figure class="shot shot-bar">
+        <picture>
+          <source srcset="images/bar-dark.png" media="(prefers-color-scheme: dark)">
+          <img src="images/bar-light.png" alt="The Agentic Apple's status item in the macOS menu bar: five agent marks, each followed by its stacked limit meters." decoding="async" onerror="shotMissing(this)">
+        </picture>
+        <figcaption>The status item: one mark and a meter per limit window.</figcaption>
+      </figure>
+      <figure class="shot shot-panel">
+        <picture>
+          <source srcset="images/panel-dark.png" media="(prefers-color-scheme: dark)">
+          <img src="images/panel-light.png" alt="The Agentic Apple panel: per-window percentages, reset countdowns, show switches and drag handles for each agent." decoding="async" onerror="shotMissing(this)">
+        </picture>
+        <figcaption>The panel: every window, its reset, and a switch to show or hide each agent.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="install" class="section" aria-labelledby="install-title">
+    <div class="wrap narrow">
+      <h2 id="install-title">Install</h2>
+      <p class="lede">Built from source with SwiftPM. You need macOS&nbsp;14 Sonoma or later and the Command Line Tools; Xcode is not required.</p>
+
+      <div class="code">
+        <div class="code-bar"><span>Terminal</span><button type="button" class="copy" data-copy="git clone https://github.com/crueber/the-agentic-apple.git &amp;&amp; cd the-agentic-apple &amp;&amp; scripts/install.sh">Copy</button></div>
+<pre><code>git clone https://github.com/crueber/the-agentic-apple.git \
+  &amp;&amp; cd the-agentic-apple &amp;&amp; scripts/install.sh</code></pre>
+      </div>
+
+      <p>The script builds the app, installs it to <code>~/Applications</code>, links the <code>agentic-apple</code> command into <code>~/.local/bin</code> and opens it. No Command Line Tools yet?</p>
+
+      <div class="code">
+        <div class="code-bar"><span>Terminal</span><button type="button" class="copy" data-copy="xcode-select --install">Copy</button></div>
+<pre><code>xcode-select --install</code></pre>
+      </div>
+
+      <p>To update, run <code>git pull &amp;&amp; scripts/install.sh</code> in the checkout. To remove the app, its settings and its cache, run <code>scripts/uninstall.sh</code>.</p>
+
+      <aside class="note" aria-labelledby="gk-title">
+        <h3 id="gk-title">The first launch</h3>
+        <p>The app is ad-hoc signed rather than notarised by Apple, so macOS may warn you the first time it opens. If it refuses to open, go to <strong>System Settings &rsaquo; Privacy &amp; Security</strong>, scroll down and choose <strong>Open Anyway</strong> once.</p>
+        <blockquote class="author">
+          <p>"If someone wants to pay for my Apple Developer Account, I'm happy to get rid of the annoying nag when installing this tool."</p>
+        </blockquote>
+        <p><a class="sponsor" href="https://github.com/sponsors/crueber"><span aria-hidden="true">&#9825;</span> Sponsor crueber on GitHub</a></p>
+      </aside>
+    </div>
+  </section>
+
+  <section id="features" class="section" aria-labelledby="features-title">
+    <div class="wrap">
+      <h2 id="features-title">Quietly thorough</h2>
+      <p class="lede center">Small enough for a notched menu bar. Detailed enough to plan the afternoon around.</p>
+
+      <ul class="features">
+        <li class="feature feature-wide">
+          <div class="marks-row" aria-hidden="true">
+            <svg class="mk mk-or"><use href="#m-openrouter"/></svg>
+            <svg class="mk mk-oc"><use href="#m-opencode"/></svg>
+            <svg class="mk mk-sq"><use href="#m-grok"/></svg>
+            <svg class="mk mk-sq"><use href="#m-codex"/></svg>
+            <svg class="mk mk-sq"><use href="#m-claude"/></svg>
+          </div>
+          <h3>Five agents</h3>
+          <p>OpenRouter, OpenCode, Grok, Codex and Claude, each with its own monochrome mark and one meter per limit window: session, weekly, monthly, model-scoped allowances and key limits.</p>
+        </li>
+        <li class="feature">
+          <svg class="ficon" viewBox="0 0 28 28" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7.5"/><path d="M17.5 17.5L24 24"/><path d="M12 8.5v7M8.5 12h7"/></g></svg>
+          <h3>Automatic detection</h3>
+          <p>Agents you have no plan, key or usage for stay out of the bar. Nothing to configure; install a new agent and it appears on the next refresh.</p>
+        </li>
+        <li class="feature">
+          <div class="thresholds" aria-hidden="true">
+            <span><i class="bar" style="--p:42"></i></span>
+            <span><i class="bar warn" style="--p:74"></i></span>
+            <span><i class="bar crit" style="--p:94"></i></span>
+          </div>
+          <h3>Colour thresholds</h3>
+          <p>A meter turns amber at 70% and red at 90%, or when the provider says you are limited. Both thresholds are adjustable.</p>
+        </li>
+        <li class="feature">
+          <svg class="ficon" viewBox="0 0 28 28" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h12M5 14h12M5 19h12"/><path d="M22 5v18M19.5 7.5L22 5l2.5 2.5M19.5 20.5L22 23l2.5-2.5"/></g></svg>
+          <h3>Drag to reorder</h3>
+          <p>Drag agents in the panel to set the bar's order, and flip a switch to show or hide one. New agents join at the end.</p>
+        </li>
+        <li class="feature">
+          <svg class="ficon" viewBox="0 0 28 28" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v9"/><path d="M8.6 7.6a9 9 0 1 0 10.8 0"/></g></svg>
+          <h3>Launch at login</h3>
+          <p>One switch in Settings, through macOS's own login items. Refreshes every five minutes, backing off politely when a source fails.</p>
+        </li>
+        <li class="feature">
+          <svg class="ficon" viewBox="0 0 28 28" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="12" width="17" height="12" rx="3"/><path d="M9.5 12V8.5a4.5 4.5 0 0 1 9 0V12"/></g></svg>
+          <h3>Privacy-first</h3>
+          <p>Credentials are read, never refreshed or stored, and the app itself talks to just two services. <a href="#privacy">How it works</a></p>
+        </li>
+        <li class="feature">
+          <svg class="ficon" viewBox="0 0 28 28" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="21" height="18" rx="3.5"/><path d="M8.5 11l3.5 3-3.5 3M14.5 18h5"/></g></svg>
+          <h3>Scriptable</h3>
+          <p>The same readings in your terminal, for scripts and status lines:</p>
+          <p class="cli"><code>agentic-apple --text</code> <code>agentic-apple --json</code></p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="sources" class="section" aria-labelledby="sources-title">
+    <div class="wrap narrow">
+      <h2 id="sources-title">How it reads each agent</h2>
+      <p class="lede">Each agent is read from the source that agent already keeps. No accounts, no proxies, no extra sign-in.</p>
+      <div class="table-wrap">
+        <table class="sources">
+          <thead>
+            <tr><th scope="col">Agent</th><th scope="col">Where the numbers come from</th><th scope="col">Windows</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row"><svg class="mk mk-or" aria-hidden="true"><use href="#m-openrouter"/></svg>OpenRouter</th>
+              <td data-label="Source">Your key from <code>OPENROUTER_API_KEY</code> or OpenCode's credentials; the app asks OpenRouter's <code>/api/v1/key</code> and <code>/api/v1/credits</code>.</td>
+              <td data-label="Windows">Key limit, credits, previous cycle</td>
+            </tr>
+            <tr>
+              <th scope="row"><svg class="mk mk-oc" aria-hidden="true"><use href="#m-opencode"/></svg>OpenCode</th>
+              <td data-label="Source">Asks the installed <code>opencode</code> CLI for its usage limits.</td>
+              <td data-label="Windows">5-hour, weekly, monthly, Console budgets</td>
+            </tr>
+            <tr>
+              <th scope="row"><svg class="mk mk-sq" aria-hidden="true"><use href="#m-grok"/></svg>Grok</th>
+              <td data-label="Source">Grok's local billing snapshot in <code>~/.grok</code>, plus Grok Bot's local cache.</td>
+              <td data-label="Windows">Weekly or monthly, Grok Bot weekly</td>
+            </tr>
+            <tr>
+              <th scope="row"><svg class="mk mk-sq" aria-hidden="true"><use href="#m-codex"/></svg>Codex</th>
+              <td data-label="Source">Asks the installed <code>codex</code> CLI for its plan's rate limits.</td>
+              <td data-label="Windows">Session, weekly, code review</td>
+            </tr>
+            <tr>
+              <th scope="row"><svg class="mk mk-sq" aria-hidden="true"><use href="#m-claude"/></svg>Claude</th>
+              <td data-label="Source">Claude Code's sign-in, read from the Keychain; the app asks Anthropic's usage endpoint.</td>
+              <td data-label="Windows">Session (5-hour), weekly (7-day), model weekly</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="fine">Grok support is ported from the Omarchy plugin and tested against fixtures only.</p>
+    </div>
+  </section>
+
+  <section id="privacy" class="section" aria-labelledby="privacy-title">
+    <div class="wrap narrow">
+      <h2 id="privacy-title">Privacy</h2>
+      <p class="lede">Your keys and tokens are yours. The Agentic Apple looks, and leaves them exactly as it found them.</p>
+      <dl class="privacy">
+        <div>
+          <dt>Read-only credentials</dt>
+          <dd>Keys and tokens are read, never written, refreshed or cached. When Claude Code's sign-in has expired, the panel says <em>Sign-in expired</em> and suggests <code>claude auth login</code>, rather than renewing it behind your back.</dd>
+        </div>
+        <div>
+          <dt>Two services</dt>
+          <dd>The app itself contacts only OpenRouter's key and credits endpoints and Anthropic's usage endpoint. The <code>opencode</code> and <code>codex</code> CLIs it asks talk to their own services, as they always do.</dd>
+        </div>
+        <div>
+          <dt>A local cache</dt>
+          <dd>The last readings live in <code class="path">~/Library/<wbr>Caches/<wbr>com.crueber.<wbr>agentic-apple</code>, in a folder only you can read, so the bar paints instantly at login.</dd>
+        </div>
+        <div>
+          <dt>No telemetry</dt>
+          <dd>No analytics, no accounts, no update pings. It is MIT-licensed open source, so you can check.</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="section origin">
+    <div class="wrap narrow">
+      <p>The Agentic Apple is the macOS port of <a href="https://github.com/crueber/omarchy-plugin-agent-meters">Agent Meters for Omarchy</a>: same agents, same rules, written natively in Swift.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p class="foot-links">
+      <a href="https://github.com/crueber/the-agentic-apple">GitHub</a>
+      <a href="https://github.com/crueber/the-agentic-apple/blob/main/LICENSE">MIT License</a>
+      <a href="https://github.com/sponsors/crueber">Sponsor</a>
+    </p>
+    <p>The agent marks are traced monochrome identifiers, used only to tell the meters apart. Claude and Anthropic, Codex and OpenAI, Grok and xAI, OpenCode, and OpenRouter are trademarks of their respective owners. This project is not affiliated with or endorsed by any of them, nor by Apple.</p>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll('button.copy').forEach(function (btn) {
+    if (!navigator.clipboard) { btn.hidden = true; return; }
+    btn.addEventListener('click', function () {
+      navigator.clipboard.writeText(btn.dataset.copy).then(function () {
+        btn.textContent = 'Copied';
+        btn.classList.add('done');
+        setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1600);
+      });
+    });
+  });
+</script>
+</body>
+</html>
