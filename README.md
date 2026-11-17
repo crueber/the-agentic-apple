@@ -8,6 +8,7 @@ stays out of the bar. That is also the default bar order.
 [![CI](https://github.com/crueber/the-agentic-apple/actions/workflows/ci.yml/badge.svg)](https://github.com/crueber/the-agentic-apple/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black.svg?logo=apple)](#requirements)
+[![Sponsor](https://img.shields.io/github/sponsors/crueber?label=Sponsor&logo=GitHub-Sponsors&color=ea4aaa)](https://github.com/sponsors/crueber)
 
 <p align="center">
   <picture>
