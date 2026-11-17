@@ -1,0 +1,6 @@
+{"rateLimitsByLimitId":{
+ "codex_o3":{"limitId":"codex_o3","limitName":"o3","primary":{"usedPercent":8,"windowDurationMins":10080,"resetsAt":1795132800}},
+ "codex":{"limitId":"codex","planType":"plus","primary":{"usedPercent":25,"windowDurationMins":300,"resetsAt":1794927600},"secondary":{"usedPercent":50,"windowDurationMins":10080,"resetsAt":1795132800}},
+ "code_review":{"limitId":"code_review","limitName":"Code review","primary":{"usedPercent":10,"windowDurationMins":10080,"resetsAt":1795132800}}
+},
+"rateLimits":{"planType":"plus","primary":{"usedPercent":99,"windowDurationMins":300,"resetsAt":1794927600}}}

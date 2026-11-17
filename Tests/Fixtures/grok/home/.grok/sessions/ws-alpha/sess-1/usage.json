@@ -1,0 +1,5 @@
+{"updatedAt":"2026-11-17T08:00:00.000Z","turns":[
+ {"endedAt":"2026-11-15T10:00:00.000Z","totalTokens":9999,"inputTokens":9000,"outputTokens":999},
+ {"endedAt":"2026-11-16T10:00:00.000Z","totalTokens":1000,"inputTokens":800,"outputTokens":200},
+ {"endedAt":"2026-11-17T08:00:00.000Z","totalTokens":2500,"inputTokens":2000,"outputTokens":500,"turnCount":1}
+]}

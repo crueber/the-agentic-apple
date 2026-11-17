@@ -1,0 +1,6 @@
+{"ts":"2026-11-16T09:00:00.000Z","level":"info","msg":"shell: session started","ctx":{}}
+{"ts":"2026-11-16T09:00:01.000Z","level":"info","msg":"billing: fetched credits config","ctx":{"subscriptionTier":"SuperGrok","config":{"creditUsagePercent":12,"isUnifiedBillingUser":true,"currentPeriod":{"type":"BILLING_PERIOD_TYPE_WEEKLY","start":"2026-11-16T00:00:00.000Z","end":"2026-11-23T00:00:00.000Z"},"onDemandCap":{"val":0},"onDemandUsed":{"val":0},"prepaidBalance":{"val":0}}}}
+{"ts":"2026-11-17T09:29:59.000Z","level":"debug","msg":"tool: ran a command","ctx":{"note":"résumé ✓"}}
+{"ts":"2026-11-17T09:30:00.000Z","level":"info","msg":"billing: fetched credits config","ctx":{"subscriptionTier":"SuperGrok","config":{"creditUsagePercent":37.5,"isUnifiedBillingUser":true,"currentPeriod":{"type":"BILLING_PERIOD_TYPE_WEEKLY","start":"2026-11-16T00:00:00.000Z","end":"2026-11-23T00:00:00.000Z"},"onDemandCap":{"val":0},"onDemandUsed":{"val":0},"prepaidBalance":{"val":0}}}}
+{"ts":"2026-11-17T09:31:00.000Z","level":"info","msg":"shell: turn finished","ctx":{"mentions":"billing: fetched credits config"}}
+{"ts":"2026-11-17T09:32:00.000Z","level":"info","msg":"billing: fetched credits config","ctx":{"subscriptionTier":"Torn","config":{"creditUsagePerc

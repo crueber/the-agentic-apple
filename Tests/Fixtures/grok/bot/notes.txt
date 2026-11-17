@@ -1,0 +1,1 @@
+{"value":{"reading":{"readAtMs":1794999999999,"usage":{"percentUsed":99,"nextResetMs":1795132800000}}}}
