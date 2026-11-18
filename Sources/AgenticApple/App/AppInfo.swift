@@ -7,7 +7,7 @@ enum AppInfo {
     static let bundleID = "com.crueber.agentic-apple"
     static let repoURL = URL(string: "https://github.com/crueber/the-agentic-apple")!
     /// Fallback when running unbundled (`swift run`); keep in step with VERSION.
-    static let fallbackVersion = "1.0.1"
+    static let fallbackVersion = "1.0.2"
 
     static var version: String {
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? fallbackVersion

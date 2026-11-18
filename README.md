@@ -218,8 +218,9 @@ cache** setting, else `$GROK_BOT_HOME`, else
 1. `~/Library/Application Support/Grok Bot/sand-client-persistence`
 2. `~/.config/Grok Bot/sand-client-persistence` (or under `$XDG_CONFIG_HOME`)
 
-Grok Bot on its own is enough: without the Grok CLI, Grok appears with just the
-Grok Bot meter, its plan label taken from the Bot's reading.
+Grok Bot on its own is enough: without the Grok CLI, Grok still appears with
+both meters — the plan's **Weekly limit** (empty, since only the CLI reports it)
+and **Grok Bot weekly** — with the plan label taken from the Bot's reading.
 
 Open Grok Bot to refresh that cache. A reading past its expiry or its reset is
 shown as *stale* with an em dash.
@@ -542,7 +543,11 @@ From 0.2.0 on, an installed copy keeps itself up to date from this repository's
 asks GitHub for the latest release. When that release is newer than the running
 copy it downloads `The-Agentic-Apple-<version>.dmg` and its signature
 `The-Agentic-Apple-<version>.dmg.sig`, verifies both, installs the new app in
-place and relaunches into it. Drafts and prereleases are ignored. Your
+place and relaunches into it: the old copy asks macOS to start the new one,
+which waits for the old copy to quit before taking over. Drafts and
+prereleases are ignored. Each step is recorded in
+`~/Library/Logs/The Agentic Apple/update.log` (versions, steps and plain error
+text only). Your
 settings and cache carry over.
 
 **What is verified before anything is installed:**
@@ -704,8 +709,8 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
   login shell to read `PATH` and the allowlisted variables. During an update:
   `hdiutil` (attach and detach the downloaded image, read-only), `codesign`
   (verify the new app), `ditto` (copy it), the new app's own
-  `agentic-apple --version`, `open`, and a fixed `/bin/sh` helper that
-  relaunches the app once the old copy has quit. Arguments are passed directly; no outside
+  `agentic-apple --version`; the relaunch goes through LaunchServices, with
+  `open` and a fixed `/bin/sh` helper only as a fallback. Arguments are passed directly; no outside
   text is ever put into a shell string.
 - The app writes nothing outside its cache directory and its defaults domain
   (plus the optional login item) — except during an update: the download goes

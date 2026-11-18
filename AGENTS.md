@@ -166,7 +166,12 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
     client spawn children in their own process group and signal the group;
     output draining after exit is bounded, so a grandchild holding a pipe
     cannot stall a refresh. The one exception is the update relaunch helper,
-    which must outlive the app it replaces.
+    which must outlive the app it replaces — and it is only a fallback: the
+    updater relaunches through `NSWorkspace.openApplication`
+    (`createsNewApplicationInstance`, the old PID in
+    `AGENTIC_APPLE_RELAUNCH_AFTER`), and the new instance waits for that PID
+    before its single-instance check. Updater steps go to
+    `~/Library/Logs/The Agentic Apple/update.log` (`UpdateLog`) — never secrets.
 14. **Updates are signed or not installed.** Never install anything whose
     `.dmg.sig` does not verify (Ed25519, over the raw DMG bytes) against a key
     in `UpdateKeys.trusted`, and never mount or read the image before it does.

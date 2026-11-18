@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.2 — 2026-11-18
+
+- **Grok shows both meters.** With only Grok Bot in use, Grok now shows the
+  plan's **Weekly limit** meter (empty, since only the Grok CLI reports it)
+  beside **Grok Bot weekly**, instead of the Bot meter alone.
+- **Reliable relaunch after an update.** The updated app is now started
+  directly through LaunchServices as a new instance, which waits for the old
+  copy to quit before taking over; the shell helper is only a fallback. 1.0.1
+  could install an update and then not come back.
+- **Update log.** The updater records each step in
+  `~/Library/Logs/The Agentic Apple/update.log`, so a failed update or relaunch
+  can be diagnosed.
+
+> Updating **from 1.0.1** to 1.0.2 still uses 1.0.1's relaunch, so if the app
+> does not come back after this one update, open it once; later updates use the
+> new relaunch.
+
 ## 1.0.1 — 2026-11-18
 
 - **Grok Bot without the Grok CLI.** Grok now appears when only the Grok Bot

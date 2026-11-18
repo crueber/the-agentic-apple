@@ -248,11 +248,14 @@ public struct GrokCollector: ProviderCollector {
         }
 
         guard let message = found.message, let snapshot = parseConfig(message, nowMs: nowMs) else {
-            // No CLI snapshot, but Grok Bot has a reading: show Grok with the Bot meter.
+            // No CLI snapshot, but Grok Bot has a reading: Grok still shows both
+            // meters — the plan's weekly window (empty: no CLI reading to fill it)
+            // and the Grok Bot allowance.
             if let bot {
                 provider.source = "grok-bot"
                 provider.tier = bot.plan
                 provider.readAt = bot.readAt
+                provider.limits.append(Limit(key: "weekly", label: "Weekly limit", short: "wk", percent: 0))
                 provider.limits.append(botLimit(bot, nowMs: nowMs))
                 provider.available = true
                 return provider

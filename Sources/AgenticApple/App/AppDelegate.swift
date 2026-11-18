@@ -11,10 +11,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Started by the updater: let the old version finish quitting first, so
+        // the single-instance check below does not hand over to it.
+        if let raw = ProcessInfo.processInfo.environment[Updater.relaunchAfterKey],
+           let old = pid_t(raw), old > 1, old != getpid() {
+            UpdateLog.write("new version started; waiting for pid \(old) to quit")
+            let deadline = Date().addingTimeInterval(30)
+            while kill(old, 0) == 0, Date() < deadline { usleep(100_000) }
+            UpdateLog.write(kill(old, 0) == 0 ? "old version still running after 30 s" : "old version has quit")
+        }
         // Single instance: a second copy hands over to the first and quits.
         if AppInfo.isBundled {
             let others = NSRunningApplication.runningApplications(withBundleIdentifier: AppInfo.bundleID)
-                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }
             if !others.isEmpty {
                 NSApp.terminate(nil)
                 return

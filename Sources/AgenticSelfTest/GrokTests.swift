@@ -205,7 +205,8 @@ enum GrokTests {
             t.near(p.limits.last?.percent ?? -1, 42, 0.001, "Application Support first")
         }
 
-        // Grok Bot only (no Grok CLI, no ~/.grok): Grok still appears with the Bot meter.
+        // Grok Bot only (no Grok CLI, no ~/.grok): Grok still appears with both meters,
+        // the plan window empty.
         do {
             let home = Fixtures.tempHome("grok-bot-only")
             copy("grok/bot", to: home.appendingPathComponent(appSupportBot))
@@ -215,10 +216,13 @@ enum GrokTests {
             t.equal(p.hint, "")
             t.equal(p.source, "grok-bot")
             t.equal(p.tier, "SuperGrok", "plan label from the Bot reading")
-            t.equal(p.limits.count, 1, "Bot meter only")
-            t.equal(p.limits.first?.key, "bot")
-            t.near(p.limits.first?.percent ?? -1, 42, 0.001, "newest Bot reading")
-            t.equal(p.limits.first?.stale, false)
+            t.equal(p.limits.map(\.key), ["weekly", "bot"], "plan meter, then Bot meter")
+            t.equal(p.limits.first?.label, "Weekly limit")
+            t.near(p.limits.first?.percent ?? -1, 0, 0.001, "plan meter empty without a CLI reading")
+            t.equal(p.limits.first?.resetsAt, 0, "no reset to show for the plan meter")
+            t.equal(p.limits.first?.stale, false, "empty, not stale")
+            t.near(p.limits.last?.percent ?? -1, 42, 0.001, "newest Bot reading")
+            t.equal(p.limits.last?.stale, false)
             t.near(p.readAt, 1_794_902_400_000, 1, "readAt from the Bot reading")
             t.equal(p.activity, Activity.empty, "no CLI ledgers, no activity")
         }
@@ -230,7 +234,7 @@ enum GrokTests {
             let later = Date(timeIntervalSince1970: 1_795_132_800 + 3600)
             let p = await c.collect(context(home, now: later))
             t.equal(p.available, true)
-            t.equal(p.limits.first?.stale, true, "expired Bot-only reading is stale")
+            t.equal(p.limits.last?.stale, true, "expired Bot-only reading is stale")
         }
 
         // ~/.grok exists without a snapshot, but Grok Bot has a reading: the Bot meter wins, no error.
@@ -241,7 +245,7 @@ enum GrokTests {
             let p = await c.collect(context(home))
             t.equal(p.available, true)
             t.equal(p.error, "")
-            t.equal(p.limits.map(\.key), ["bot"])
+            t.equal(p.limits.map(\.key), ["weekly", "bot"])
         }
 
         // Neither the CLI nor Grok Bot: unavailable, silent.

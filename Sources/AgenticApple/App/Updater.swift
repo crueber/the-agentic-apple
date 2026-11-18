@@ -26,7 +26,17 @@ final class Updater: ObservableObject {
         case failed(String)
     }
 
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle {
+        didSet {
+            guard phase != oldValue else { return }
+            switch phase {
+            case .idle, .checking: break
+            case .updating(let v): UpdateLog.write("installing \(v)")
+            case .available(let v, _, let canInstall): UpdateLog.write("\(v) available\(canInstall ? "" : " (cannot install here)")")
+            case .failed(let m): UpdateLog.write("update: \(m)")
+            }
+        }
+    }
     @Published private(set) var lastCheck: Date?
     @Published private(set) var now = Date()
 
@@ -186,16 +196,53 @@ final class Updater: ObservableObject {
 
         settings.defaults.set(version, forKey: Keys.installedVersion)
         settings.defaults.synchronize()
-        let fixture = ProcessInfo.processInfo.environment["AGENTIC_APPLE_FIXTURE"] == "1"
-        let started = UpdateRelaunch.spawn(waitingFor: ProcessInfo.processInfo.processIdentifier,
-                                           appPath: Bundle.main.bundleURL.path, fixture: fixture)
-        guard started else {
+        UpdateLog.write("swapped in \(version); relaunching")
+        guard await Self.relaunch() else {
             // The new version is in place; it starts next time.
+            UpdateLog.write("relaunch could not be started; waiting for a manual reopen")
             store.holdFetches(false)
             phase = .failed("Updated to \(version); quit and reopen the app to finish")
             return
         }
+        UpdateLog.write("quitting so the new version can take over")
         NSApp.terminate(nil)
+    }
+
+    /// Environment variable carrying the old instance's PID to the new one,
+    /// which waits for that PID to exit before its single-instance check.
+    /// (An environment variable, not an argument: arguments are CLI modes.)
+    static let relaunchAfterKey = "AGENTIC_APPLE_RELAUNCH_AFTER"
+
+    /// Launch the freshly swapped-in bundle as a new instance through
+    /// LaunchServices, before quitting. The new instance waits for this
+    /// process to exit. Falls back to the detached shell helper if
+    /// LaunchServices refuses. True when something was started.
+    private static func relaunch() async -> Bool {
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let fixture = ProcessInfo.processInfo.environment["AGENTIC_APPLE_FIXTURE"] == "1"
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        config.activates = false
+        config.addsToRecentItems = false
+        var env = [relaunchAfterKey: String(pid)]
+        if fixture { env["AGENTIC_APPLE_FIXTURE"] = "1" }
+        config.environment = env
+        let appURL = Bundle.main.bundleURL
+        let launched: Bool = await withCheckedContinuation { continuation in
+            NSWorkspace.shared.openApplication(at: appURL, configuration: config) { app, error in
+                if let error {
+                    UpdateLog.write("LaunchServices relaunch failed: \(error.localizedDescription)")
+                    continuation.resume(returning: false)
+                } else {
+                    UpdateLog.write("new instance launched (pid \(app?.processIdentifier ?? 0))")
+                    continuation.resume(returning: true)
+                }
+            }
+        }
+        if launched { return true }
+        let helper = UpdateRelaunch.spawn(waitingFor: pid, appPath: appURL.path, fixture: fixture)
+        UpdateLog.write(helper ? "fell back to the relaunch helper" : "relaunch helper could not start")
+        return helper
     }
 
     private static func words(_ error: Error) -> String {

@@ -95,7 +95,12 @@ automatically** setting (`autoUpdate`).
    `agentic-apple --version` must print the expected version.
 6. The installed bundle is renamed to a hidden backup and the staged copy
    renamed into its place. If any step fails, the old app is restored and the
-   staged copy removed. The app then relaunches; the new version removes the
+   staged copy removed. The app then relaunches: it asks LaunchServices to start
+   the new bundle as a new instance (passing only its own PID, in
+   `AGENTIC_APPLE_RELAUNCH_AFTER`), and quits once that launch is confirmed; the
+   new instance waits for the old PID to exit before its single-instance check.
+   Only if LaunchServices refuses does the fixed `/bin/sh` helper below take
+   over. The new version removes the
    backup and any leftover staging folder when it starts.
 
 ### Where it never installs
@@ -179,8 +184,8 @@ nothing about you or your agents.
 | `/usr/bin/codesign` | `--verify --deep --strict` on the mounted app, then `--verify` on the staged copy | during an update |
 | `/usr/bin/ditto` | `--noqtn` copy of the new app from the image to the staging folder | during an update |
 | the staged `agentic-apple` | `--version` | during an update, to confirm the staged version |
-| `/usr/bin/open` | launch the updated app | after an update |
-| `/bin/sh` | a fixed relaunch helper script (no outside text in it) that waits for the old copy to quit, then opens the new one | after an update; it outlives the app by design |
+| `/usr/bin/open` | launch the updated app | after an update, only if LaunchServices refused the direct relaunch |
+| `/bin/sh` | a fixed relaunch helper script (no outside text in it) that waits for the old copy to quit, then opens the new one | fallback only, as above; it outlives the app by design |
 
 Processes are started directly with an argument list; no outside text is ever
 interpolated into a command (the only shells involved are the fixed `PATH`
@@ -208,6 +213,9 @@ app runs whatever executable you point it at.
     request ids. No text.
 - The user defaults domain `com.crueber.agentic-apple` (settings only).
 - A login item, when you turn on **Launch at Login** (`SMAppService`).
+- `~/Library/Logs/The Agentic Apple/update.log` (directory `0700`, file
+  `0600`, rotated at 256 KB with one `.1` kept): what the updater did —
+  versions, steps, PIDs and plain error text. Never a key, token or agent data.
 - During an update only: the downloaded image and signature, and the mount
   point, in a fresh `0700` directory under the temporary folder, removed
   afterwards; and a hidden staging copy of the new app
