@@ -90,7 +90,7 @@ is derived from `money` and the cycle history in `Logic/State.swift`.
 | --- | --- |
 | OpenRouter | `OPENROUTER_API_KEY` → `authFile` / `OPENROUTER_AUTH_FILE` → `$XDG_DATA_HOME` or `~/.local/share/opencode/auth.json` → `opencode auth export [openrouter]`; then `GET /api/v1/key`, `/api/v1/credits` |
 | OpenCode | `opencode api GET /api/experimental/usage/limits`, retry `opencode api --standalone GET …`; activity from `opencode.db` via `/usr/bin/sqlite3 -readonly -json` |
-| Grok | last `billing: fetched credits config` line of `~/.grok/logs/unified.jsonl`; `sessions/*/*/usage.json`; Grok Bot `*.blob` under `~/Library/Application Support/Grok Bot/sand-client-persistence`, then `~/.config/Grok Bot/…` |
+| Grok | last `billing: fetched credits config` line of `~/.grok/logs/unified.jsonl`; `sessions/*/*/usage.json`; Grok Bot `*.blob` under `~/Library/Application Support/Grok Bot/sand-client-persistence`, then `~/.config/Grok Bot/…` (Grok Bot alone is enough: no CLI snapshot → Bot meter only, tier from `grokPlanLabel`) |
 | Codex | `codex -s read-only -a on-request app-server`: `initialize` → `initialized` → `account/rateLimits/read` (`rateLimitsByLimitId`, else legacy `rateLimits`), `account/read` only for the plan |
 | Claude | Keychain `Claude Code-credentials` via `/usr/bin/security … -w`, and `~/.claude/.credentials.json` (later `expiresAt` wins); `GET https://api.anthropic.com/api/oauth/usage` with `anthropic-beta: oauth-2025-04-20`; activity from `~/.claude/projects/**/*.jsonl` |
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 — 2026-11-18
+
+- **Grok Bot without the Grok CLI.** Grok now appears when only the Grok Bot
+  desktop app is in use: its cached weekly allowance is shown with the plan
+  label from the Bot's own reading. Before, the Grok Bot meter was only read
+  when a Grok CLI snapshot existed, so Bot-only users saw no Grok at all.
+- Grok Bot's macOS cache location
+  (`~/Library/Application Support/Grok Bot/sand-client-persistence`) is now
+  confirmed against a real install.
+
 ## 1.0.0 — 2026-11-17
 
 General availability.

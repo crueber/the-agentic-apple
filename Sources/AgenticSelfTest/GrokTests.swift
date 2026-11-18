@@ -204,5 +204,53 @@ enum GrokTests {
             let p = await c.collect(context(home))
             t.near(p.limits.last?.percent ?? -1, 42, 0.001, "Application Support first")
         }
+
+        // Grok Bot only (no Grok CLI, no ~/.grok): Grok still appears with the Bot meter.
+        do {
+            let home = Fixtures.tempHome("grok-bot-only")
+            copy("grok/bot", to: home.appendingPathComponent(appSupportBot))
+            let p = await c.collect(context(home))
+            t.equal(p.available, true, "Bot-only user is detected")
+            t.equal(p.error, "", "no CLI error for a Bot-only user")
+            t.equal(p.hint, "")
+            t.equal(p.source, "grok-bot")
+            t.equal(p.tier, "SuperGrok", "plan label from the Bot reading")
+            t.equal(p.limits.count, 1, "Bot meter only")
+            t.equal(p.limits.first?.key, "bot")
+            t.near(p.limits.first?.percent ?? -1, 42, 0.001, "newest Bot reading")
+            t.equal(p.limits.first?.stale, false)
+            t.near(p.readAt, 1_794_902_400_000, 1, "readAt from the Bot reading")
+            t.equal(p.activity, Activity.empty, "no CLI ledgers, no activity")
+        }
+
+        // Grok Bot only, reading expired: still shown, marked stale.
+        do {
+            let home = Fixtures.tempHome("grok-bot-only-stale")
+            copy("grok/bot", to: home.appendingPathComponent(appSupportBot))
+            let later = Date(timeIntervalSince1970: 1_795_132_800 + 3600)
+            let p = await c.collect(context(home, now: later))
+            t.equal(p.available, true)
+            t.equal(p.limits.first?.stale, true, "expired Bot-only reading is stale")
+        }
+
+        // ~/.grok exists without a snapshot, but Grok Bot has a reading: the Bot meter wins, no error.
+        do {
+            let home = Fixtures.tempHome("grok-cli-empty-bot")
+            try? fm.createDirectory(at: home.appendingPathComponent(".grok"), withIntermediateDirectories: true)
+            copy("grok/bot", to: home.appendingPathComponent(appSupportBot))
+            let p = await c.collect(context(home))
+            t.equal(p.available, true)
+            t.equal(p.error, "")
+            t.equal(p.limits.map(\.key), ["bot"])
+        }
+
+        // Neither the CLI nor Grok Bot: unavailable, silent.
+        do {
+            let home = Fixtures.tempHome("grok-nothing")
+            let p = await c.collect(context(home))
+            t.equal(p.available, false)
+            t.equal(p.error, "")
+            t.equal(p.limits.count, 0)
+        }
     }
 }

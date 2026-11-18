@@ -87,7 +87,9 @@ own source says. The bar only draws the agents that pass:
   store (`opencode auth export`). Keys are never cached.
 - **OpenCode** — appears when the installed `opencode` answers with a Go
   allowance.
-- **Grok** — appears when Grok's local billing snapshot has a reading.
+- **Grok** — appears when Grok's local billing snapshot has a reading, or
+  when the Grok Bot desktop app has cached its weekly allowance (Grok Bot alone
+  is enough — no Grok CLI needed).
 - **Codex** — appears when the Codex CLI is signed in to a plan with rate
   limits. An API-key sign-in has no plan limits and stays out of the bar.
 - **Claude** — appears when Claude Code has a plan or limits. An expired
@@ -215,6 +217,9 @@ cache** setting, else `$GROK_BOT_HOME`, else
 
 1. `~/Library/Application Support/Grok Bot/sand-client-persistence`
 2. `~/.config/Grok Bot/sand-client-persistence` (or under `$XDG_CONFIG_HOME`)
+
+Grok Bot on its own is enough: without the Grok CLI, Grok appears with just the
+Grok Bot meter, its plan label taken from the Bot's reading.
 
 Open Grok Bot to refresh that cache. A reading past its expiry or its reset is
 shown as *stale* with an em dash.
@@ -712,14 +717,10 @@ See [`SECURITY.md`](SECURITY.md) for reporting and the full data-flow notes.
 
 ## Known limitations
 
-- **Grok is ported, not field-tested on macOS.** Its reader is a faithful port
+- **The Grok CLI reader is not field-tested on macOS.** It is a faithful port
   of the Omarchy plugin's and passes the offline fixtures, but it has not been
-  checked against a live Grok install on a Mac.
-- **Grok Bot's macOS cache path is an assumption.** The app looks in
-  `~/Library/Application Support/Grok Bot/sand-client-persistence` first (the
-  Electron convention), then the Linux-style `~/.config` path. If your Grok Bot
-  keeps it elsewhere, set **Grok Bot cache** in Settings — and please open an
-  issue with the path.
+  checked against a live Grok CLI install on a Mac. (Grok Bot's cache in
+  `~/Library/Application Support/Grok Bot/sand-client-persistence` has been.)
 - **OpenCode's usage endpoint is experimental** (`/api/experimental/…`) and may
   change shape in a future OpenCode release.
 - **Codex starts its own app-server briefly each refresh** — a short-lived

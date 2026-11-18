@@ -240,7 +240,23 @@ public struct GrokCollector: ProviderCollector {
         let logURL = home.appendingPathComponent("logs/unified.jsonl")
         let found = lastBillingMessage(logURL)
 
+        // Grok Bot (the desktop app) keeps its own weekly allowance, read from its
+        // cache. It is read first: someone who only uses Grok Bot has no CLI log.
+        var bot: BotReading?
+        for root in botHomes(context) {
+            if let reading = readBotUsage(root) { bot = reading; break }
+        }
+
         guard let message = found.message, let snapshot = parseConfig(message, nowMs: nowMs) else {
+            // No CLI snapshot, but Grok Bot has a reading: show Grok with the Bot meter.
+            if let bot {
+                provider.source = "grok-bot"
+                provider.tier = bot.plan
+                provider.readAt = bot.readAt
+                provider.limits.append(botLimit(bot, nowMs: nowMs))
+                provider.available = true
+                return provider
+            }
             // Grok not installed: nothing to say. Installed but no snapshot yet:
             // say how to create one (the bar skips an unavailable agent anyway).
             if FileManager.default.fileExists(atPath: home.path) {
@@ -259,16 +275,8 @@ public struct GrokCollector: ProviderCollector {
                                      percent: snapshot.usedPercent, resetsAt: snapshot.resetsAt,
                                      stale: snapshot.expired))
 
-        var bot: BotReading?
-        for root in botHomes(context) {
-            if let reading = readBotUsage(root) { bot = reading; break }
-        }
         if let bot {
-            let expired = bot.expiresAt > 0 && nowMs > bot.expiresAt
-            let elapsed = bot.resetsAt > 0 && nowMs >= bot.resetsAt
-            provider.limits.append(Limit(key: "bot", label: "Grok Bot weekly", short: "bot",
-                                         percent: bot.percent, resetsAt: Sanitize.dateMs(bot.resetsAt),
-                                         stale: expired || elapsed))
+            provider.limits.append(botLimit(bot, nowMs: nowMs))
         }
 
         let since = snapshot.periodStart > 0 ? snapshot.periodStart : nowMs - 7 * dayMs
@@ -278,5 +286,14 @@ public struct GrokCollector: ProviderCollector {
         }
         provider.available = !provider.limits.isEmpty || !provider.tier.isEmpty
         return provider
+    }
+
+    /// The Grok Bot weekly window; stale once past the cache's expiry or its reset.
+    static func botLimit(_ bot: BotReading, nowMs: Double) -> Limit {
+        let expired = bot.expiresAt > 0 && nowMs > bot.expiresAt
+        let elapsed = bot.resetsAt > 0 && nowMs >= bot.resetsAt
+        return Limit(key: "bot", label: "Grok Bot weekly", short: "bot",
+                     percent: bot.percent, resetsAt: Sanitize.dateMs(bot.resetsAt),
+                     stale: expired || elapsed)
     }
 }
