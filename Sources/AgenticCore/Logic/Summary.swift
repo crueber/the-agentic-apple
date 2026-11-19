@@ -6,7 +6,7 @@ import Foundation
 /// Public API (`history` defaults to `.empty`, `warn`/`critical` to 70/90, `now` is epoch ms):
 /// - `Summary.compactText(_ provider:, history:, warn:, critical:) -> String`
 ///       "5h 12% · 7d 45%", "7d 2% · bot —" (stale), OpenRouter "$4.20" or "50%"
-///       (OpenRouter: its bar windows only, e.g. "$4.20 · cr 25% · key 74%");
+///       (OpenRouter account-wide: "$20.81 credits left · $49.93 this month", also its tooltip line);
 ///       the provider's status when it has no windows
 /// - `Summary.providerTooltip(_ provider:, history:, now:, warn:, critical:) -> String`
 ///       "Claude · Max 5x\n  Session (5-hour): 12% · Resets in 4h 48m\n…\n<error>"
@@ -14,10 +14,10 @@ import Foundation
 ///       blocks joined by a blank line; "No AI agents found" for none
 /// - `Summary.allHiddenTooltip` — tooltip when agents exist but every one is switched off
 /// - `Summary.activityText(_ provider:) -> String`  "Today · 4 prompts · 320K tokens", "This week · …", ""
-/// - `Summary.windowValueText(_ window:) -> String` panel row value: "$4.20" | "—" (stale) | "45%"
+/// - `Summary.windowValueText(_ window:) -> String` panel row value: "$4.20" | "$20.81 left" |
+///       "$3.10 this month" (value rows) | "—" (stale) | "45%"
 /// - `Summary.windowCaption(_ window:, now:) -> String`
 ///       "$8.00 of $12.00 · Resets in 3d 4h · stale reading · over the previous cycle"
-/// - `Summary.creditsText(_ window:) -> String?`  Credits row: "$74.75 left of $100.50"
 /// - `Summary.moneySummary(_ money: Money) -> String`  "$30.00 credits left · $20.00 monthly limit" | "No key limit"
 ///       | "" for the account-wide (management key) block
 /// - `Summary.budgetValueText(_ budget: Budget) -> String`  "$3.00 / $10.00"
@@ -30,10 +30,8 @@ public enum Summary {
 
     public static func compactText(_ provider: Provider?, history: CycleHistory = .empty,
                                    warn: Double = Meters.defaultWarn, critical: Double = Meters.defaultCritical) -> String {
-        // OpenRouter with a management key can carry many key rows: keep to what the bar draws.
-        let windows = provider?.id == .openrouter
-            ? Meters.barWindows(provider, history: history, warn: warn, critical: critical)
-            : Meters.windowsFor(provider, history: history, warn: warn, critical: critical)
+        if Meters.isAccountWide(provider) { return accountWideText(provider) }
+        let windows = Meters.windowsFor(provider, history: history, warn: warn, critical: critical)
         if windows.isEmpty { return provider?.status ?? "" }
         return windows.map { w -> String in
             if w.key == "cycle" {
@@ -44,6 +42,15 @@ public enum Summary {
         }.joined(separator: dot)
     }
 
+    /// Account-wide OpenRouter: "$20.81 credits left · $49.93 this month".
+    static func accountWideText(_ provider: Provider?) -> String {
+        var parts: [String] = []
+        if let credits = Meters.creditsLeft(provider) { parts.append(Format.currency(credits) + " credits left") }
+        let spend = provider?.money?.spend ?? 0
+        parts.append(Format.currency(spend.isFinite ? max(0, spend) : 0) + " this month")
+        return parts.joined(separator: dot)
+    }
+
     public static func providerTooltip(_ provider: Provider?, history: CycleHistory = .empty, now: Double,
                                        warn: Double = Meters.defaultWarn, critical: Double = Meters.defaultCritical) -> String {
         guard let provider else { return "" }
@@ -52,11 +59,16 @@ public enum Summary {
         if !provider.tier.isEmpty { head += dot + provider.tier }
         lines.append(head)
         if !provider.status.isEmpty { lines.append(provider.status) }
+        if Meters.isAccountWide(provider) {
+            // The panel has the per-key rows; the tooltip keeps to the account.
+            lines.append("  " + accountWideText(provider))
+            if !provider.error.isEmpty { lines.append(provider.error) }
+            return lines.joined(separator: "\n")
+        }
         for w in Meters.windowsFor(provider, history: history, warn: warn, critical: critical) {
             let value = w.mode == .dollars ? Format.currency(w.spend) : Format.percentText(w.percent)
             var line = "  " + w.detail + ": " + value
             if w.mode == .meter, let e = w.effectiveLimit, e != 0 { line += " of " + Format.currency(e) }
-            if let credits = creditsText(w) { line += dot + credits }
             let reset = Format.resetText(w.resetsAt, now: now)
             if !reset.isEmpty { line += dot + reset }
             if w.stale { line += dot + "stale" }
@@ -83,7 +95,10 @@ public enum Summary {
     }
 
     public static func windowValueText(_ window: MeterWindow) -> String {
-        if window.mode == .dollars { return Format.currency(window.spend) }
+        if window.mode == .dollars {
+            let value = Format.currency(window.spend)
+            return window.valueSuffix.isEmpty ? value : value + " " + window.valueSuffix
+        }
         return window.stale ? Format.dash : Format.percentText(window.percent)
     }
 
@@ -92,18 +107,12 @@ public enum Summary {
         if window.mode == .meter, let e = window.effectiveLimit, e != 0 {
             parts.append(Format.currency(window.spend) + " of " + Format.currency(e))
         }
-        if let credits = creditsText(window) { parts.append(credits) }
+
         let reset = Format.resetText(window.resetsAt, now: now)
         if !reset.isEmpty { parts.append(reset) }
         if window.stale { parts.append("stale reading") }
         if window.over { parts.append("over the previous cycle") }
         return parts.joined(separator: dot)
-    }
-
-    /// The Credits row's "$74.75 left of $100.50", nil for any other window.
-    public static func creditsText(_ window: MeterWindow) -> String? {
-        guard window.key == "credits", let left = window.credits, let total = window.totalCredits else { return nil }
-        return Format.currency(max(0, left)) + " left of " + Format.currency(max(0, total))
     }
 
     public static func moneySummary(_ money: Money) -> String {

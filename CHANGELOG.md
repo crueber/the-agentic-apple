@@ -9,11 +9,13 @@
   - **All keys · this month** — every key's monthly spend, in dollars until a
     previous month has been observed, then a meter against it (yellow when
     over), like the per-key cycle;
-  - **Credits** — credits used against purchased, *$X left of $Y*;
-  - a row for each key with a spending limit (up to six, fullest first), with
-    its daily, weekly or monthly reset.
+  - **Credits** — the credits left (*$20.81 left*), with no lifetime totals;
+  - the top N keys by spend this month (**Show the top N keys**, default 3,
+    0–12): a meter against the key's limit with its reset, or
+    *$X.XX this month* for a key without a limit. Unused keys are left out.
 
-  The bar shows the month, Credits and the fullest key. **Save** verifies the
+  The menu bar shows just the credits left (`$20.81`) beside the mark — or
+  this month's spend when credits aren't available. **Save** verifies the
   key (*Verified · N keys*, or why not); **Remove** returns to the per-key
   view. `OPENROUTER_MANAGEMENT_KEY` from your login shell works too.
 - **Stored only in the Keychain.** The management key lives in your login

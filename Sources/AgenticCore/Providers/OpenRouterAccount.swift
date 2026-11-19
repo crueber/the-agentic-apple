@@ -20,8 +20,9 @@ import Foundation
 /// Mapping:
 /// - money: label `Money.accountWideLabel` ("All keys"), spend = Σ `usage_monthly`,
 ///   no limit, monthly, resets the next 1st 00:00 UTC; credits left / total.
-/// - limits: `credits` (used / purchased), then up to `maxKeyRows` keys with a
-///   spending limit (`key-<first 8 of hash>`), highest percent first.
+/// - limits: `credits` (a value row: `amount` = credits left), then up to
+///   `maxKeyRows` keys used this month (`key-<first 8 of hash>`), most spend
+///   first, zero spend left out; a limited key is a meter, others a value row.
 /// - Failures never fall back to the inference key; they set `error` and return
 ///   no numbers, so `ProviderMerge` keeps the last good ones.
 ///
@@ -44,7 +45,7 @@ extension OpenRouterCollector {
 
     static let keysPageSize = 100
     static let maxKeyPages = 10
-    static let maxKeyRows = 6
+    static let maxKeyRows = 12
     static let managementKeyMinLength = 16
     static let managementKeyMaxLength = 512
 
@@ -264,17 +265,26 @@ extension OpenRouterCollector {
         }
     }
 
+    /// Credits left as a value row (no meter: purchases and usage are lifetime totals).
     static func creditsLimit(_ c: (total: Double, used: Double, remaining: Double)) -> Limit {
-        let percent = c.total > 0 ? c.used / c.total * 100 : 0
-        return Limit(key: "credits", label: "Credits", short: "cr", percent: percent,
-                     resetsAt: 0, limited: c.total > 0 && c.remaining <= 0)
+        Limit(key: "credits", label: "Credits", short: "cr", percent: 0, amount: c.remaining)
     }
 
-    /// One row per key with a positive limit, highest percent first, at most `maxKeyRows`.
+    /// The keys used most this month: ranked by `usage_monthly`, zero usage left
+    /// out, at most `maxKeyRows` (the panel shows the first `openrouterKeyRows`).
+    /// A key with a limit is a meter against it; one without is a value row
+    /// (`amount` = this month's spend).
     static func keyLimits(_ keys: [[String: Any]], now: Date) -> [Limit] {
-        var rows: [Limit] = []
+        var rows: [(monthly: Double, limit: Limit)] = []
         for (index, k) in keys.enumerated() {
-            guard let limit = Sanitize.number(k["limit"]), limit > 0 else { continue }
+            let monthly = max(0, Sanitize.number(k["usage_monthly"]) ?? 0)
+            guard monthly > 0 else { continue }
+            let key = rowKey(k["hash"], index: index), name = keyName(k)
+            guard let limit = Sanitize.number(k["limit"]), limit > 0 else {
+                rows.append((monthly, Limit(key: key, label: name, short: "key", percent: 0,
+                                            amount: monthly)))
+                continue
+            }
             let reset = (k["limit_reset"] as? String).map { $0.lowercased() }
             let remaining = Sanitize.number(k["limit_remaining"])
             let used: Double
@@ -290,14 +300,14 @@ extension OpenRouterCollector {
                 }
                 used = Sanitize.number(k[field]) ?? 0
             }
-            rows.append(Limit(key: rowKey(k["hash"], index: index), label: keyName(k), short: "key",
-                              percent: used / limit * 100, resetsAt: nextReset(reset, now: now),
-                              limited: (remaining ?? 1) <= 0))
+            rows.append((monthly, Limit(key: key, label: name, short: "key",
+                                        percent: used / limit * 100, resetsAt: nextReset(reset, now: now),
+                                        limited: (remaining ?? 1) <= 0)))
         }
-        // Stable: equal percents keep the API's order.
+        // Stable: equal spend keeps the API's order.
         let sorted = rows.enumerated().sorted { a, b in
-            a.element.percent != b.element.percent ? a.element.percent > b.element.percent : a.offset < b.offset
-        }.map(\.element)
+            a.element.monthly != b.element.monthly ? a.element.monthly > b.element.monthly : a.offset < b.offset
+        }.map(\.element.limit)
         return Array(sorted.prefix(maxKeyRows))
     }
 

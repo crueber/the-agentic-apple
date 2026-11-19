@@ -12,6 +12,8 @@ struct DisplayState: Equatable {
     var warn: Double = 70
     var critical: Double = 90
     var showActivity = true
+    /// OpenRouter account-wide: key rows listed in the panel (`openrouterKeyRows`).
+    var openrouterKeyRows = 3
     var barStyle: BarStyle = .bars
     var palette = Palette()
     /// Epoch ms used for every relative time.
@@ -33,7 +35,7 @@ struct DisplayState: Equatable {
     func isShown(_ id: ProviderID) -> Bool { visibility[id] != false }
 
     func windows(_ p: Provider) -> [MeterWindow] {
-        Meters.windowsFor(p, history: history, warn: warn, critical: critical)
+        Meters.windowsFor(p, history: history, warn: warn, critical: critical, keyRows: openrouterKeyRows)
     }
 
     var heroPercent: String {

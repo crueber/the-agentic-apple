@@ -33,9 +33,12 @@ public struct Limit: Codable, Equatable, Sendable {
     public var limited: Bool
     /// The reading is past its expiry (e.g. Grok Bot cache).
     public var stale: Bool
+    /// A dollar value instead of a meter (OpenRouter's credits left, an unlimited
+    /// key's monthly spend). nil = an ordinary percentage window. Finite, ≥ 0.
+    public var amount: Double?
 
     public init(key: String, label: String, short: String, percent: Double,
-                resetsAt: Double = 0, limited: Bool = false, stale: Bool = false) {
+                resetsAt: Double = 0, limited: Bool = false, stale: Bool = false, amount: Double? = nil) {
         self.key = key
         self.label = label
         self.short = short
@@ -43,6 +46,7 @@ public struct Limit: Codable, Equatable, Sendable {
         self.resetsAt = resetsAt
         self.limited = limited
         self.stale = stale
+        self.amount = amount.flatMap { $0.isFinite ? max(0, $0) : nil }
     }
 }
 

@@ -89,8 +89,13 @@ epoch milliseconds (0 = unknown). OpenRouter's window is derived from `money`
 and the cycle history in `Logic/State.swift`; with an inference key its
 `limits` stay empty. With a management key, `money.label` is
 `Money.accountWideLabel` ("All keys", Σ `usage_monthly`, no limit) and
-`limits` holds `credits`, then up to six `key-<hash8>` rows (fullest first);
-`Meters.windowsFor` puts the money window first, then those limits.
+`limits` holds `credits` (a value row: `Limit.amount` = credits left), then
+up to 12 `key-<hash8>` rows ranked by `usage_monthly` (zero left out; a limited
+key is a meter, an unlimited one a value row with `amount` = monthly spend).
+`Meters.windowsFor(..., keyRows:)` puts the money window first, then those
+limits, keeping the first `openrouterKeyRows` keys (UI only, no refetch). The
+bar shows only `Meters.barDollarsText` (credits left, else monthly spend).
+`Limit.amount` (optional, nil for every other provider) marks a value row.
 
 ## Data sources
 
@@ -156,7 +161,8 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
    `providerOrder`, `refreshIntervalSec`, `warnPercent`, `criticalPercent`,
    `warningColor`, `criticalColor`, `showActivity`, `opencodeCommand`,
    `codexCommand`, `grokHome`, `botHome`, `authFile`). Do not rename them.
-   `autoUpdate` (bool, default true) is this app's own addition.
+   `autoUpdate` (bool, default true) and `openrouterKeyRows` (int 0–12,
+   default 3) are this app's own additions.
    `launchAtLogin` mirrors `SMAppService` and records the user's choice:
    `LoginItem.ensureOnLaunch` turns it on at an installed copy's first launch
    and re-registers when the setting is on but macOS lost the item; never from

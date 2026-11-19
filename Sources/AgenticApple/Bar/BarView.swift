@@ -59,11 +59,16 @@ struct BarChip: View {
                 }
                 let dollars = Meters.barDollarsText(provider, history: state.history, warn: state.warn, critical: state.critical)
                 if !dollars.isEmpty {
-                    let color = state.windows(provider).first?.color ?? .normal
+                    let color = Meters.barDollarsColor(provider, history: state.history, warn: state.warn, critical: state.critical)
                     Text(dollars)
                         .font(.system(size: 11, weight: .medium).monospacedDigit())
                         .foregroundStyle(state.palette.color(color, scheme))
                 }
+            case .text where Meters.isAccountWide(provider):
+                // Account-wide OpenRouter: the credits figure only, as in the meters style.
+                Text(Meters.barDollarsText(provider, history: state.history, warn: state.warn, critical: state.critical))
+                    .font(.system(size: 11, weight: .medium).monospacedDigit())
+                    .lineLimit(1)
             case .text:
                 Text(Summary.compactText(provider, history: state.history, warn: state.warn, critical: state.critical))
                     .font(.system(size: 11, weight: .medium).monospacedDigit())

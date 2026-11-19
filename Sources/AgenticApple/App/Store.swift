@@ -349,6 +349,7 @@ final class Store: ObservableObject {
         s.warn = Double(settings.warnPercent)
         s.critical = Double(settings.criticalPercent)
         s.showActivity = settings.showActivity
+        s.openrouterKeyRows = settings.openrouterKeyRows
         s.barStyle = settings.barStyle
         s.palette = Palette(warningHex: settings.warningColor.isEmpty ? nil : settings.warningColor,
                             criticalHex: settings.criticalColor.isEmpty ? nil : settings.criticalColor)

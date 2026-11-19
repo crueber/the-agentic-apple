@@ -166,78 +166,114 @@ enum LogicTests {
     // MARK: OpenRouter, management key (account-wide)
 
     static func openrouterAccount(_ t: TestRun) {
-        let money = Money(label: Money.accountWideLabel, limit: nil, spend: 8, credits: 74.75, totalCredits: 100.5,
+        let money = Money(label: Money.accountWideLabel, limit: nil, spend: 49.93, credits: 20.81, totalCredits: 535,
                           resetInterval: "monthly", resetsAt: cycleEnd)
         let limits = [
-            Limit(key: "credits", label: "Credits", short: "cr", percent: 25.62),
-            Limit(key: "key-aaaa1111", label: "Production", short: "key", percent: 80, resetsAt: cycleEnd),
-            Limit(key: "key-bbbb2222", label: "Staging", short: "key", percent: 30, resetsAt: now + day / 2),
+            Limit(key: "credits", label: "Credits", short: "cr", percent: 0, amount: 20.81),
+            Limit(key: "key-aaaa1111", label: "hermes", short: "key", percent: 80, resetsAt: cycleEnd),
+            Limit(key: "key-bbbb2222", label: "phoragent", short: "key", percent: 0, amount: 3.1),
+            Limit(key: "key-cccc3333", label: "ci", short: "key", percent: 30, resetsAt: now + day / 2),
+            Limit(key: "key-dddd4444", label: "spare", short: "key", percent: 0, amount: 0.5),
         ]
         var p = provider(.openrouter, tier: "Management key", limits: limits, money: money)
-        p.status = "3 keys"
+        p.status = "7 keys"
 
-        // No previous cycle yet: dollars for the money window, meters for the rest.
+        // Panel: month first, Credits as a value row, keys in the collector's order.
         let windows = Meters.windowsFor(p)
-        t.equal(windows.map(\.key), ["cycle", "credits", "key-aaaa1111", "key-bbbb2222"], "money window, credits, keys")
+        t.equal(windows.map(\.key), ["cycle", "credits", "key-aaaa1111", "key-bbbb2222", "key-cccc3333", "key-dddd4444"])
         t.equal(windows[0].detail, "All keys \u{00B7} this month")
-        t.equal(windows[0].mode, .dollars)
-        t.check(windows[0].limit == nil, "no single key limit account-wide")
-        t.equal(windows[1].detail, "Credits")
-        t.equal(windows[1].credits, 74.75)
-        t.equal(windows[1].totalCredits, 100.5)
-        t.equal(Summary.windowCaption(windows[1], now: now), "$74.75 left of $100.50")
+        t.equal(Summary.windowValueText(windows[0]), "$49.93")
+        let credits = windows[1]
+        t.equal(credits.mode, .dollars, "Credits has no meter")
+        t.equal(Summary.windowValueText(credits), "$20.81 left")
+        t.equal(Summary.windowCaption(credits, now: now), "", "no lifetime totals")
+        t.equal(credits.color, .normal)
+        t.equal(Summary.windowValueText(windows[2]), "80%")
         t.equal(Summary.windowCaption(windows[2], now: now), "Resets in 15d 12h")
-        t.equal(Summary.windowCaption(windows[3], now: now), "Resets in 12h 0m")
-        t.equal(windows[2].color, .warning, "key at 80%")
-        t.check(Summary.creditsText(windows[2]) == nil, "credits caption only on the Credits row")
-        t.equal(Summary.moneySummary(money), "", "no misleading 'No key limit' line")
+        t.equal(windows[3].mode, .dollars, "an unlimited key is a value row")
+        t.equal(Summary.windowValueText(windows[3]), "$3.10 this month")
+        t.equal(Summary.windowCaption(windows[3], now: now), "")
+        t.equal(Summary.moneySummary(money), "")
 
-        // The bar: the money window, credits, the highest key; dollars beside the meters.
-        t.equal(Meters.barWindows(p).map(\.key), ["cycle", "credits", "key-aaaa1111"])
-        t.equal(Meters.barMeters(p).map(\.key), ["credits", "key-aaaa1111"])
-        t.equal(Meters.barDollarsText(p), "$8.00")
-        t.equal(Summary.compactText(p), "$8.00 \u{00B7} cr 25.6% \u{00B7} key 80%")
-        t.equal(Meters.providerColor(p), .warning)
+        // The N cut (the openrouterKeyRows setting) keeps month and Credits.
+        t.equal(Meters.windowsFor(p, keyRows: 2).map(\.key), ["cycle", "credits", "key-aaaa1111", "key-bbbb2222"])
+        t.equal(Meters.windowsFor(p, keyRows: 0).map(\.key), ["cycle", "credits"])
+        t.equal(Meters.windowsFor(p, keyRows: 99).count, 6)
+        t.equal(Meters.windowsFor(p, keyRows: -1).map(\.key), ["cycle", "credits"], "negative → none")
+
+        // Headline: never Credits; the highest key meter.
+        t.equal(Meters.summaryWindow(windows)?.key, "key-aaaa1111")
         t.equal(Meters.highestMeterPercent([p]), 80)
+        var onlyValues = p
+        onlyValues.limits = [limits[0], limits[2]]
+        t.equal(Meters.summaryWindow(Meters.windowsFor(onlyValues))?.mode, .dollars, "no meter → no headline percent")
+        t.check(Meters.highestMeterPercent([onlyValues]) == nil, "credits never reach the hero")
 
-        // With a previous month observed: the money window becomes a meter vs that month.
-        let hist = CycleHistory(current: Cycle(key: "c", end: cycleEnd, spend: 8, lastObservedAt: now),
-                                previous: Cycle(key: "p", end: cycleEnd - 30 * day, spend: 16, lastObservedAt: cycleEnd - 30 * day)).normalized()
+        // Bar: the credits figure only, normal colour, no meters, in every style's text.
+        t.check(Meters.isAccountWide(p), "account-wide")
+        t.equal(Meters.creditsLeft(p), 20.81)
+        t.equal(Meters.barMeters(p).count, 0)
+        t.equal(Meters.barDollarsText(p), "$20.81")
+        t.equal(Meters.barDollarsColor(p), .normal)
+        t.equal(Summary.compactText(p), "$20.81 credits left \u{00B7} $49.93 this month")
+        let tip = Summary.providerTooltip(p, now: now)
+        t.equal(tip, "OpenRouter \u{00B7} Management key\n7 keys\n  $20.81 credits left \u{00B7} $49.93 this month")
+        t.check(!tip.contains("535") && !Summary.compactText(p).contains("535"), "no lifetime totals")
+
+        // No /credits (404): the month's spend in the bar.
+        var noCredits = p
+        noCredits.limits = Array(limits.dropFirst())
+        t.check(Meters.creditsLeft(noCredits) == nil, "no credits")
+        t.equal(Meters.barDollarsText(noCredits), "$49.93")
+        t.equal(Summary.compactText(noCredits), "$49.93 this month")
+        var idle = noCredits
+        idle.money?.spend = 0
+        t.equal(Meters.barDollarsText(idle), "", "nothing to show: mark only")
+
+        // With a previous month observed the panel's money window is a meter; the bar still shows credits.
+        let hist = CycleHistory(current: Cycle(key: "c", end: cycleEnd, spend: 49.93, lastObservedAt: now),
+                                previous: Cycle(key: "p", end: cycleEnd - 30 * day, spend: 99.86, lastObservedAt: cycleEnd - 30 * day)).normalized()
         let metered = Meters.windowsFor(p, history: hist)
         t.equal(metered[0].mode, .meter)
         t.equal(metered[0].percent, 50)
-        t.equal(Summary.windowCaption(metered[0], now: now), "$8.00 of $16.00 \u{00B7} Resets in 15d 12h")
-        t.equal(Meters.barMeters(p, history: hist).map(\.key), ["cycle", "credits", "key-aaaa1111"])
+        t.equal(Summary.windowCaption(metered[0], now: now), "$49.93 of $99.86 \u{00B7} Resets in 15d 12h")
+        t.equal(Meters.barMeters(p, history: hist).count, 0)
+        t.equal(Meters.barDollarsText(p, history: hist), "$20.81")
         var over = p
-        over.money?.spend = 20
+        over.money?.spend = 120
         t.equal(Meters.windowsFor(over, history: hist)[0].color, .yellow, "over the previous month")
         t.equal(Meters.providerColor(over, history: hist), .warning, "a key at 80% is not masked by the dollars window")
-        t.equal(Meters.summaryWindow(Meters.windowsFor(over, history: hist))?.key, "key-aaaa1111", "headline from a meter")
+        t.equal(Meters.barDollarsColor(over, history: hist), .normal, "the bar figure stays normal")
         var hot = over
         hot.limits[1].percent = 95
         t.equal(Meters.providerColor(hot, history: hist), .critical, "over the previous month + a key at 95%")
-        t.check(Meters.isAlarming(hot, history: hist), "alarms")
         var calmOver = over
-        calmOver.limits = [Limit(key: "credits", label: "Credits", short: "cr", percent: 10)]
+        calmOver.limits = [limits[0]]
         t.equal(Meters.providerColor(calmOver, history: hist), .yellow, "yellow when nothing else is elevated")
-
-        let tip = Summary.providerTooltip(p, history: hist, now: now)
-        t.check(tip.contains("All keys \u{00B7} this month: 50% of $16.00"), "tooltip money line: \(tip)")
-        t.check(tip.contains("Credits: 25.6% \u{00B7} $74.75 left of $100.50"), "tooltip credits line: \(tip)")
-        t.check(tip.hasPrefix("OpenRouter \u{00B7} Management key\n3 keys"), "tooltip head")
 
         // The cycle history keeps working for the account-wide money.
         let advanced = CycleHistory.empty.advanced(with: money, now: now)
         t.equal(advanced.current?.end, cycleEnd)
-        t.equal(advanced.current?.spend, 8)
+        t.equal(advanced.current?.spend, 49.93)
 
-        // Weekly/daily phrasing, and limits never leak into other providers' logic.
+        // Value rows survive the cache; other providers and the per-key view are unaffected.
+        let slim = UsageCache.slim(p)
+        t.equal(slim.limits.map(\.amount), [20.81, nil, 3.1, nil, 0.5])
+        t.check(Limit(key: "x", label: "x", short: "x", percent: 1, amount: .nan).amount == nil, "non-finite amount dropped")
+        t.equal(Limit(key: "x", label: "x", short: "x", percent: 1, amount: -4).amount, 0, "negative amount clamped")
+        let legacy = #"{"key":"weekly","label":"Weekly","short":"7d","percent":12,"resetsAt":0,"limited":false,"stale":false}"#
+        let decoded = try? JSONDecoder().decode(Limit.self, from: Data(legacy.utf8))
+        t.check(decoded != nil && decoded?.amount == nil, "an old cache entry decodes without amount")
         t.equal(Meters.periodPhrase("weekly"), "this week")
         t.equal(Meters.periodPhrase("daily"), "today")
         t.equal(Meters.periodPhrase(""), "this month")
         let perKey = provider(.openrouter, money: Money(label: "key \u{2026}abc", limit: nil, spend: 3, resetInterval: "monthly"))
+        t.check(!Meters.isAccountWide(perKey), "per-key view")
         t.equal(Meters.windowsFor(perKey).map(\.key), ["cycle"], "per-key view unchanged")
         t.equal(Summary.compactText(perKey), "$3.00")
+        t.equal(Meters.barDollarsText(perKey), "$3.00")
+        let claude = provider(.claude, limits: [limit("session", 40)])
+        t.equal(Meters.windowsFor(claude, keyRows: 0).count, 1, "keyRows only affects OpenRouter")
     }
 
     // MARK: OpenRouter

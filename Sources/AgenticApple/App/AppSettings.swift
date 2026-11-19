@@ -49,6 +49,15 @@ final class AppSettings: ObservableObject {
     @Published var showActivity: Bool { didSet { defaults.set(showActivity, forKey: Keys.showActivity) } }
     /// Mirrors SMAppService's state; the source of truth is the system.
     @Published var launchAtLogin: Bool { didSet { defaults.set(launchAtLogin, forKey: Keys.launchAtLogin) } }
+    /// OpenRouter with a management key: how many of the keys used most this month
+    /// the panel lists (0–12, default 3). The bar never shows key rows.
+    @Published var openrouterKeyRows: Int {
+        didSet {
+            let clamped = Self.clampKeyRows(openrouterKeyRows)
+            if clamped != openrouterKeyRows { openrouterKeyRows = clamped; return }
+            defaults.set(openrouterKeyRows, forKey: Keys.openrouterKeyRows)
+        }
+    }
     /// Check for and install signed updates automatically (default on).
     @Published var autoUpdate: Bool { didSet { defaults.set(autoUpdate, forKey: Keys.autoUpdate) } }
 
@@ -68,7 +77,11 @@ final class AppSettings: ObservableObject {
         static let showActivity = "showActivity"
         static let launchAtLogin = "launchAtLogin"
         static let autoUpdate = "autoUpdate"
+        static let openrouterKeyRows = "openrouterKeyRows"
     }
+
+    nonisolated static let defaultKeyRows = 3
+    nonisolated static func clampKeyRows(_ n: Int) -> Int { min(12, max(0, n)) }
 
     /// "show" + capitalised id, exactly as the reference: showOpenrouter, showOpencode, …
     nonisolated static func showKey(_ id: ProviderID) -> String {
@@ -94,6 +107,7 @@ final class AppSettings: ObservableObject {
         showActivity = defaults.object(forKey: Keys.showActivity) as? Bool ?? true
         launchAtLogin = defaults.bool(forKey: Keys.launchAtLogin)
         autoUpdate = defaults.object(forKey: Keys.autoUpdate) as? Bool ?? true
+        openrouterKeyRows = s.openrouterKeyRows
     }
 
     func isShown(_ id: ProviderID) -> Bool { visibility[id] != false }
@@ -120,6 +134,7 @@ struct SettingsSnapshot: Sendable {
     var grokHome = ""
     var botHome = ""
     var authFile = ""
+    var openrouterKeyRows = 3
 
     static func read(_ d: UserDefaults) -> SettingsSnapshot {
         typealias K = AppSettings.Keys
@@ -137,6 +152,9 @@ struct SettingsSnapshot: Sendable {
         s.grokHome = d.string(forKey: K.grokHome) ?? ""
         s.botHome = d.string(forKey: K.botHome) ?? ""
         s.authFile = d.string(forKey: K.authFile) ?? ""
+        s.openrouterKeyRows = AppSettings.clampKeyRows(
+            Schedule.clampInt((d.object(forKey: K.openrouterKeyRows) as? NSNumber)?.doubleValue, 0, 12,
+                              fallback: AppSettings.defaultKeyRows))
         return s
     }
 

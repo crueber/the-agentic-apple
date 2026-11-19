@@ -65,7 +65,7 @@ public struct UsageCache: Equatable, Sendable {
             let short = Sanitize.plain(l.short, max: 16)
             return Limit(key: key, label: label.isEmpty ? key : label, short: short.isEmpty ? key : short,
                          percent: l.percent, resetsAt: max(0, finite(l.resetsAt)),
-                         limited: l.limited, stale: l.stale)
+                         limited: l.limited, stale: l.stale, amount: l.amount)
         }
         p.activity = Activity(period: provider.activity.period == "week" ? "week" : "today",
                               prompts: provider.activity.prompts, tokens: provider.activity.tokens)

@@ -281,7 +281,7 @@ private struct AdvancedPane: View {
 
     var body: some View {
         Form {
-            OpenRouterKeySection(store: store)
+            OpenRouterKeySection(settings: settings, store: store)
             Section {
                 PathField(title: "opencode", text: $settings.opencodeCommand, placeholder: "opencode on the login PATH")
                 PathField(title: "codex", text: $settings.codexCommand, placeholder: "codex on the login PATH")
@@ -326,6 +326,7 @@ private struct AdvancedPane: View {
 /// OpenRouter management key: stored only in the login Keychain. The field is
 /// cleared after Save and the key is never shown again.
 private struct OpenRouterKeySection: View {
+    @ObservedObject var settings: AppSettings
     @ObservedObject var store: Store
     @State private var draft = ""
     @State private var saved = ManagementKeyStore.isSaved()
@@ -347,6 +348,12 @@ private struct OpenRouterKeySection: View {
                         .disabled(working || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button("Remove") { remove() }
                         .disabled(working || !saved)
+                }
+            }
+            Stepper(value: $settings.openrouterKeyRows, in: 0...12) {
+                LabeledContent("Show the top \(settings.openrouterKeyRows) keys") {
+                    Text(settings.openrouterKeyRows == 0 ? "none" : "by spend this month")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             HStack(spacing: 6) {

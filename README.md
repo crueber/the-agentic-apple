@@ -52,7 +52,7 @@ no Node, no Omarchy and no daemon of its own.
 
 | Agent | Menu bar | Panel rows |
 | --- | --- | --- |
-| **OpenRouter** | OpenRouter mark + meter, or dollars | This cycle's spend against the key's own limit (or the previous cycle), account credits, reset; with a [management key](#management-key-account-wide), every key's spend, a Credits meter and each limited key |
+| **OpenRouter** | OpenRouter mark + meter, or dollars | This cycle's spend against the key's own limit (or the previous cycle), account credits, reset; with a [management key](#management-key-account-wide), the credits left in the bar, this month's spend across every key and the keys used most |
 | **OpenCode** | OpenCode mark + up to three meters | 5-hour session, weekly, monthly, Console budgets, today's activity |
 | **Grok** | Grok mark + plan and Grok Bot meters | Weekly (or daily/monthly) plan limit, Grok Bot's separate weekly allowance, this week's local activity |
 | **Codex** | Codex mark + up to three meters | Session, weekly, code review, model-scoped allowances, a Business seat's spend cap |
@@ -190,14 +190,21 @@ Management keys cannot run completions; the app only uses one to read usage.
   - **All keys · this month** — the sum of every key's monthly spend, in
     dollars until a previous month has been observed, then a meter against
     that month (yellow when over), exactly like the per-key cycle;
-  - **Credits** — credits used against credits purchased, captioned
-    *$X left of $Y*;
-  - **one row per key with a spending limit** (up to six, fullest first),
-    titled with the key's name (or `Key …` and four characters — never the
-    full label), with its reset: daily at 00:00 UTC, weekly on Monday 00:00
-    UTC, monthly on the 1st 00:00 UTC.
+  - **Credits** — what is left on the account, as a plain figure
+    (*$20.81 left*); lifetime purchases and usage are not shown;
+  - **the top N keys by spend this month** — N is **Show the top N keys**
+    next to the management key (default 3, 0–12; `openrouterKeyRows`). Keys
+    with no spend this month are left out. A key with a spending limit shows a
+    meter against it with its reset (daily at 00:00 UTC, weekly on Monday 00:00
+    UTC, monthly on the 1st 00:00 UTC); a key without one shows
+    *$X.XX this month*. Rows are titled with the key's name (or `Key …` and
+    four characters — never the full label).
 
-  The bar draws up to three of these: the month, Credits and the fullest key.
+  The **menu bar** shows only the mark and the credits left (`$20.81`), in the
+  normal colour, in the Meters and Percentages styles — no meters and no key
+  rows (Marks only stays marks only). If OpenRouter does not report credits
+  for the account, it shows this month's spend instead. The tooltip and
+  `--text` read `OpenRouter: $20.81 credits left · $49.93 this month`.
 - **If the management key fails** (expired, revoked, offline) the app says so
   and keeps the last account-wide numbers; it does not quietly switch back to
   the inference key. Fix or remove the key in Settings.
@@ -687,6 +694,7 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
 | `grokHome` | string | `""` | Grok home; empty uses `$GROK_HOME` or `~/.grok` |
 | `botHome` | string | `""` | Grok Bot cache directory; empty tries the locations listed under [Grok](#grok) |
 | `authFile` | string | `""` | An OpenCode 1 `auth.json` holding the OpenRouter key; when set, only this file is read |
+| `openrouterKeyRows` | int | `3` | With an OpenRouter management key: how many of the keys used most this month the panel lists, 0–12 (0 = none); the bar never shows them |
 | `autoUpdate` | bool | `true` | Check for and install signed updates in the background (see [Updates](#updates)); **Check for Updates…** works either way |
 
 **Launch at login** is managed by macOS (`SMAppService`) and also appears under

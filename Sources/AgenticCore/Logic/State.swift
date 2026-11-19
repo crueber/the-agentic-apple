@@ -27,6 +27,10 @@ import Foundation
 /// - `Meters.barWindows(...) -> [MeterWindow]`          first 3 windows (what the bar considers)
 /// - `Meters.barMeters(...) -> [MeterWindow]`           bar windows actually drawn as mini meters
 /// - `Meters.barDollarsText(...) -> String`             OpenRouter's "$4.20" bar text, "" when none
+///       (account-wide: credits left, else this month's spend; no meters drawn)
+/// - `Meters.barDollarsColor(...) -> MeterState`        its colour (normal account-wide)
+/// - `Meters.isAccountWide(_:)`, `Meters.creditsLeft(_:) -> Double?`  OpenRouter management-key mode
+///   (`windowsFor(..., keyRows:)` keeps only the first N `key-` rows)
 /// - `Meters.providerColor(...) -> MeterState`          colour of the bar text for a provider (meters
 ///       ranked first; OpenRouter's yellow only when no other window is elevated)
 /// - `Meters.summaryWindow(_ windows:) -> MeterWindow?` headline window: highest live meter, else highest
@@ -68,6 +72,8 @@ public struct MeterWindow: Equatable, Sendable {
     public var totalCredits: Double?
     public var resetInterval: String
     public var keyLabel: String
+    /// Dollars-mode value rows: a word after the figure ("left", "this month").
+    public var valueSuffix: String
 
     public init(key: String, label: String, short: String, detail: String, percent: Double,
                 resetsAt: Double = 0, stale: Bool = false, limited: Bool = false,
@@ -75,13 +81,13 @@ public struct MeterWindow: Equatable, Sendable {
                 meterVisible: Bool = true, spend: Double? = nil, limit: Double? = nil,
                 effectiveLimit: Double? = nil, over: Bool = false, previous: Cycle? = nil,
                 credits: Double? = nil, totalCredits: Double? = nil, resetInterval: String = "",
-                keyLabel: String = "") {
+                keyLabel: String = "", valueSuffix: String = "") {
         self.key = key; self.label = label; self.short = short; self.detail = detail
         self.percent = percent; self.resetsAt = resetsAt; self.stale = stale; self.limited = limited
         self.state = state; self.color = color; self.mode = mode; self.meterVisible = meterVisible
         self.spend = spend; self.limit = limit; self.effectiveLimit = effectiveLimit; self.over = over
         self.previous = previous; self.credits = credits; self.totalCredits = totalCredits
-        self.resetInterval = resetInterval; self.keyLabel = keyLabel
+        self.resetInterval = resetInterval; self.keyLabel = keyLabel; self.valueSuffix = valueSuffix
     }
 }
 
@@ -145,27 +151,48 @@ public enum Meters {
             resetInterval: money.resetInterval, keyLabel: money.label)
     }
 
+    /// `keyRows`: OpenRouter account-wide only — how many key rows to keep
+    /// (the `openrouterKeyRows` setting); nil keeps all the collector returned.
     public static func windowsFor(_ provider: Provider?, history: CycleHistory = .empty,
-                                  warn: Double = defaultWarn, critical: Double = defaultCritical) -> [MeterWindow] {
+                                  warn: Double = defaultWarn, critical: Double = defaultCritical,
+                                  keyRows: Int? = nil) -> [MeterWindow] {
         guard let provider else { return [] }
         if provider.id == .openrouter {
-            // The money window first; a management key adds Credits and per-key
-            // rows after it (the collector orders them: credits, then keys by percent).
+            // The money window first; a management key adds Credits and the keys
+            // used most this month after it (in the collector's order).
             var windows = openrouterWindow(provider, history: history, warn: warn, critical: critical).map { [$0] } ?? []
-            windows += provider.limits.map { limit in
-                var w = limitWindow(limit, warn: warn, critical: critical)
-                if limit.key == "credits", let money = provider.money {
-                    w.credits = money.credits
-                    w.totalCredits = money.totalCredits
+            var keysLeft = max(0, keyRows ?? Int.max)
+            for limit in provider.limits {
+                if limit.key.hasPrefix("key-") {
+                    if keysLeft == 0 { continue }
+                    keysLeft -= 1
                 }
-                return w
+                windows.append(limitWindow(limit, warn: warn, critical: critical))
             }
             return windows
         }
         return provider.limits.map { limitWindow($0, warn: warn, critical: critical) }
     }
 
+    /// OpenRouter with a management key ("All keys" money block).
+    public static func isAccountWide(_ provider: Provider?) -> Bool {
+        provider?.id == .openrouter && provider?.money?.label == Money.accountWideLabel
+    }
+
+    /// Account-wide credits left, nil when OpenRouter did not report them.
+    public static func creditsLeft(_ provider: Provider?) -> Double? {
+        guard isAccountWide(provider) else { return nil }
+        return provider?.limits.first { $0.key == "credits" }?.amount
+    }
+
     static func limitWindow(_ limit: Limit, warn: Double, critical: Double) -> MeterWindow {
+        if let amount = limit.amount {
+            // A value row: a dollar figure, no meter, no percent, never coloured.
+            return MeterWindow(key: limit.key, label: limit.label, short: limit.short, detail: limit.label,
+                               percent: 0, resetsAt: limit.resetsAt, stale: limit.stale, limited: false,
+                               mode: .dollars, meterVisible: false, spend: amount,
+                               valueSuffix: limit.key == "credits" ? "left" : "this month")
+        }
         let state: MeterState = limit.limited ? .critical : stateOf(limit.percent, warn: warn, critical: critical)
         return MeterWindow(key: limit.key, label: limit.label, short: limit.short, detail: limit.label,
                            percent: limit.percent, resetsAt: limit.resetsAt, stale: limit.stale,
@@ -190,7 +217,9 @@ public enum Meters {
     /// `meterVisible` (zero spend or no baseline draws the mark only).
     public static func barMeters(_ provider: Provider?, history: CycleHistory = .empty,
                                  warn: Double = defaultWarn, critical: Double = defaultCritical) -> [MeterWindow] {
-        barWindows(provider, history: history, warn: warn, critical: critical).filter {
+        // Account-wide OpenRouter draws its credits figure only, never meters.
+        if isAccountWide(provider) { return [] }
+        return barWindows(provider, history: history, warn: warn, critical: critical).filter {
             $0.mode == .meter && (provider?.id != .openrouter || $0.meterVisible)
         }
     }
@@ -199,10 +228,23 @@ public enum Meters {
     /// Zero spend draws nothing (mark only).
     public static func barDollarsText(_ provider: Provider?, history: CycleHistory = .empty,
                                       warn: Double = defaultWarn, critical: Double = defaultCritical) -> String {
+        if isAccountWide(provider) {
+            // Credits left; without /credits, this month's spend.
+            if let credits = creditsLeft(provider) { return Format.currency(credits) }
+            let spend = provider?.money?.spend ?? 0
+            return spend.isFinite && spend > 0 ? Format.currency(spend) : ""
+        }
         guard provider?.id == .openrouter,
               let w = windowsFor(provider, history: history, warn: warn, critical: critical).first,
               w.mode == .dollars, let spend = w.spend, spend > 0 else { return "" }
         return Format.currency(spend)
+    }
+
+    /// Colour of OpenRouter's bar figure: the money window's, or normal account-wide.
+    public static func barDollarsColor(_ provider: Provider?, history: CycleHistory = .empty,
+                                       warn: Double = defaultWarn, critical: Double = defaultCritical) -> MeterState {
+        if isAccountWide(provider) { return .normal }
+        return windowsFor(provider, history: history, warn: warn, critical: critical).first?.color ?? .normal
     }
 
     public static func providerColor(_ provider: Provider?, history: CycleHistory = .empty,

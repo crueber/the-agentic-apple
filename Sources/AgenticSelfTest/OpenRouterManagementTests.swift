@@ -57,6 +57,8 @@ extension OpenRouterTests {
             // no limit: no row, but counts and spends
             keyJSON(hash: "nolimit01", name: "Unlimited", monthly: 0.25),
             // disabled and expired: excluded from everything
+            // limited but unused this month: counted, never listed
+            keyJSON(hash: "zerouse01", name: "Idle", limit: "10", remaining: "10", reset: "\"monthly\"", monthly: 0),
             keyJSON(hash: "disabled01", name: "Old", disabled: true, limit: "1", remaining: "0", monthly: 50),
             keyJSON(hash: "expired001", name: "Gone", limit: "1", remaining: "0", monthly: 70, expires: "\"\(iso(pastMs))\""),
         ])
@@ -72,7 +74,7 @@ extension OpenRouterTests {
             t.equal(p.available, true)
             t.equal(p.error, "")
             t.equal(p.tier, "Management key")
-            t.equal(p.status, "5 keys", "enabled, non-expired keys")
+            t.equal(p.status, "6 keys", "enabled, non-expired keys")
             t.equal(p.source, "openrouter-management")
             t.equal(p.readAt, mgmtNow.timeIntervalSince1970 * 1000)
 
@@ -85,10 +87,15 @@ extension OpenRouterTests {
             t.equal(m?.resetInterval, "monthly")
             t.equal(m?.resetsAt, LogicTests.utc(2026, 12, 1), "next 1st, 00:00 UTC")
 
-            t.equal(p.limits.map(\.key), ["credits", "key-0000aaaa", "key-a1b2c3d4", "key-9999ffff", "key-f01d4a2b"],
-                    "credits first, keys by percent (limited daily key at 100%)")
+            t.equal(p.limits.map(\.key), ["credits", "key-f01d4a2b", "key-a1b2c3d4", "key-0000aaaa", "key-9999ffff", "key-nolimit0"],
+                    "credits first, then keys by usage_monthly; zero usage left out")
             let byKey = Dictionary(uniqueKeysWithValues: p.limits.map { ($0.key, $0) })
-            t.near(byKey["credits"]?.percent ?? -1, 25.75 / 100.5 * 100, 0.0001, "credits percent")
+            t.near(byKey["credits"]?.amount ?? -1, 74.75, 0.0001, "credits left as a value")
+            t.equal(byKey["credits"]?.percent, 0, "no lifetime percent")
+            t.check(byKey["key-f01d4a2b"]?.amount == nil, "a limited key is a meter")
+            t.near(byKey["key-nolimit0"]?.amount ?? -1, 0.25, 0.0001, "an unlimited key: this month's spend")
+            t.equal(byKey["key-nolimit0"]?.label, "Unlimited")
+            t.equal(byKey["key-nolimit0"]?.resetsAt, 0)
             t.equal(byKey["credits"]?.label, "Credits")
             t.equal(byKey["credits"]?.short, "cr")
             t.equal(byKey["credits"]?.resetsAt, 0)
@@ -127,7 +134,9 @@ extension OpenRouterTests {
             t.equal(http.calls.map(\.url), [keysPage0, "https://openrouter.ai/api/v1/keys?offset=100", creditsURL])
             t.equal(p.status, "101 keys")
             t.near(p.money?.spend ?? -1, 2, 0.0001, "spend across pages")
-            t.equal(p.limits.map(\.key), ["credits", "key-p1last"])
+            t.equal(p.limits.count, 13, "credits + at most 12 keys")
+            t.equal(p.limits[1].key, "key-p1last", "the most-used key first, across pages")
+            t.equal(p.limits[2].amount, 0.01, "then the unlimited keys as value rows")
 
             // Capped at 10 pages.
             var routes: [String: OpenRouterStubHTTP.Reply] = [creditsURL: .json(200, creditsOK)]
@@ -137,17 +146,18 @@ extension OpenRouterTests {
             t.equal(capped.calls.filter { $0.url.contains("/keys") }.count, 10, "at most 10 pages")
             t.equal(pc.status, "1000 keys")
 
-            // More than six limited keys: six rows, highest first.
-            let many = keysDoc((0..<9).map { keyJSON(hash: "many\($0)xxxx", name: "K\($0)", limit: "10", remaining: "\(10 - $0)") })
+            // Ranked by this month's spend (not percent), zero left out, at most twelve.
+            let many = keysDoc((0..<15).map { keyJSON(hash: "many\($0)xxxx", name: "K\($0)", limit: "100", remaining: "\(100 - $0)",
+                                                      monthly: Double($0)) })
             let pm = await c.collect(mgmtContext(home: Fixtures.tempHome("or-mgmt-many"),
                                                  http: OpenRouterStubHTTP([keysPage0: .json(200, many), creditsURL: .json(200, creditsOK)])))
-            t.equal(pm.limits.count, 7, "credits + six keys")
-            t.equal(pm.limits.dropFirst().map(\.label), ["K8", "K7", "K6", "K5", "K4", "K3"])
-            // total_credits 0 → 0%.
+            t.equal(pm.limits.count, 13, "credits + twelve keys")
+            t.equal(pm.limits.dropFirst().map(\.label), (3...14).reversed().map { "K\($0)" })
+            // total_credits below usage → $0 left.
             let pz = await c.collect(mgmtContext(home: Fixtures.tempHome("or-mgmt-zero"),
                                                  http: OpenRouterStubHTTP([keysPage0: .json(200, keysDoc([])),
                                                                            creditsURL: .json(200, #"{"data":{"total_credits":0,"total_usage":3}}"#)])))
-            t.equal(pz.limits.first?.percent, 0, "no credits bought → 0%")
+            t.equal(pz.limits.first?.amount, 0, "nothing left → $0")
             t.equal(pz.status, "0 keys")
             t.equal(pz.available, true)
         }
@@ -228,7 +238,7 @@ extension OpenRouterTests {
             // Credits: 404 is tolerated (no Credits row); 401 is not.
             let (pNoCredits, _) = await run([keysPage0: .json(200, keys), creditsURL: .json(404, "{}")])
             t.equal(pNoCredits.error, "")
-            t.equal(pNoCredits.limits.first?.key, "key-0000aaaa", "no Credits row")
+            t.equal(pNoCredits.limits.first?.key, "key-f01d4a2b", "no Credits row")
             t.check(pNoCredits.money?.credits == nil, "no credits figure")
             let (pCredits401, _) = await run([keysPage0: .json(200, keys), creditsURL: .json(401, "{}")])
             t.equal(pCredits401.status, "Management key expired or invalid")
@@ -250,7 +260,7 @@ extension OpenRouterTests {
             let ok = OpenRouterStubHTTP([keysPage0: .json(200, keys)])
             let v = await OpenRouterCollector.verifyManagementKey(" \(mgmtKey) ", http: ok.client, now: mgmtNow)
             t.equal(v.ok, true)
-            t.equal(v.message, "Verified \u{00B7} 5 keys")
+            t.equal(v.message, "Verified \u{00B7} 6 keys")
             t.equal(ok.calls.map(\.url), [keysPage0], "one /keys call")
             t.equal(ok.calls.first?.headers["Authorization"], "Bearer \(mgmtKey)")
 
