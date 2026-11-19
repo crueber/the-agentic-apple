@@ -26,9 +26,13 @@ public struct OpenRouterCollector: ProviderCollector {
     public typealias ManagementKeyReader = @Sendable (CollectorContext) throws -> String?
 
     public let managementKeyReader: ManagementKeyReader
+    /// The analytics cost metric and this run's monthly-baseline attempts.
+    public let analytics: AnalyticsMemo
 
-    public init(managementKeyReader: @escaping ManagementKeyReader = OpenRouterCollector.readManagementKeyFromKeychain) {
+    public init(managementKeyReader: @escaping ManagementKeyReader = OpenRouterCollector.defaultManagementKeyReader(),
+                analytics: AnalyticsMemo = .shared) {
         self.managementKeyReader = managementKeyReader
+        self.analytics = analytics
     }
     public var id: ProviderID { .openrouter }
 
@@ -39,11 +43,11 @@ public struct OpenRouterCollector: ProviderCollector {
         // A management key covers the whole account and wins over the inference key.
         switch await Self.resolveManagementKey(context, reader: managementKeyReader) {
         case .key(let management):
-            return await Self.collectAccount(management, context)
-        case .unreadable:
+            return await Self.collectAccount(management, context, analytics: analytics)
+        case .unreadable(let message):
             // Don't guess: the merge keeps the last good numbers with this error.
             var provider = Provider(id: .openrouter, source: Self.accountSource)
-            provider.error = Self.unreadableKeychain
+            provider.error = message
             return provider
         case .none:
             break

@@ -26,24 +26,38 @@ public enum HTTPError: Error, Sendable, CustomStringConvertible {
     }
 }
 
-/// Injectable HTTP: the real one uses URLSession; tests pass a closure.
+/// Injectable HTTP: the real one uses URLSession; tests pass closures.
 public struct HTTPClient: Sendable {
-    public var get: @Sendable (_ url: String, _ headers: [String: String]) async throws -> HTTPResponse
+    public typealias Get = @Sendable (_ url: String, _ headers: [String: String]) async throws -> HTTPResponse
+    public typealias Post = @Sendable (_ url: String, _ headers: [String: String], _ body: Data) async throws -> HTTPResponse
 
-    public init(get: @escaping @Sendable (_ url: String, _ headers: [String: String]) async throws -> HTTPResponse) {
+    public var get: Get
+    /// JSON POST (OpenRouter analytics). nil = this client cannot POST.
+    public var post: Post?
+
+    public init(get: @escaping Get, post: Post? = nil) {
         self.get = get
+        self.post = post
     }
 
     public static let maxBody = 1024 * 1024
+    /// Request bodies are small JSON documents.
+    public static let maxRequestBody = 16 * 1024
     public static let timeout: TimeInterval = 15
 
     /// HTTPS only, no redirects followed, no cookies, no cache, 1 MB cap, 15 s timeout.
-    public static let live = HTTPClient { urlString, headers in
+    public static let live = HTTPClient(
+        get: { url, headers in try await perform("GET", url, headers, body: nil) },
+        post: { url, headers, body in try await perform("POST", url, headers, body: body) })
+
+    static func perform(_ method: String, _ urlString: String, _ headers: [String: String], body: Data?) async throws -> HTTPResponse {
         guard let url = URL(string: urlString), url.scheme == "https" else { throw HTTPError.invalidURL }
+        if let body, body.count > maxRequestBody { throw HTTPError.tooLarge }
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: timeout)
-        request.httpMethod = "GET"
+        request.httpMethod = method
         request.httpShouldHandleCookies = false
         for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
+        if let body { request.httpBody = body }
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = timeout
         config.timeoutIntervalForResource = timeout

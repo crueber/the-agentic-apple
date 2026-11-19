@@ -42,6 +42,15 @@ public enum Summary {
         }.joined(separator: dot)
     }
 
+    /// Account-wide OpenRouter in the Percentages bar style: "$20.81 · 82%"
+    /// (the percent only when the month has a baseline).
+    public static func accountWideBarText(_ provider: Provider?, history: CycleHistory = .empty,
+                                          warn: Double = Meters.defaultWarn, critical: Double = Meters.defaultCritical) -> String {
+        let dollars = Meters.barDollarsText(provider, history: history, warn: warn, critical: critical)
+        guard let meter = Meters.barMeters(provider, history: history, warn: warn, critical: critical).first else { return dollars }
+        return [dollars, windowValueText(meter)].filter { !$0.isEmpty }.joined(separator: dot)
+    }
+
     /// Account-wide OpenRouter: "$20.81 credits left · $49.93 this month".
     static func accountWideText(_ provider: Provider?) -> String {
         var parts: [String] = []
@@ -99,19 +108,22 @@ public enum Summary {
             let value = Format.currency(window.spend)
             return window.valueSuffix.isEmpty ? value : value + " " + window.valueSuffix
         }
-        return window.stale ? Format.dash : Format.percentText(window.percent)
+        if window.stale { return Format.dash }
+        // Account-wide month over its average: say how far ("120%"), the bar fill is capped.
+        return Format.percentText(window.percent, upTo: window.baselineText.isEmpty ? 100 : 9999)
     }
 
     public static func windowCaption(_ window: MeterWindow, now: Double) -> String {
         var parts: [String] = []
         if window.mode == .meter, let e = window.effectiveLimit, e != 0 {
-            parts.append(Format.currency(window.spend) + " of " + Format.currency(e))
+            let of = Format.currency(window.spend) + " of " + Format.currency(e)
+            parts.append(window.baselineText.isEmpty ? of : of + " " + window.baselineText)
         }
 
         let reset = Format.resetText(window.resetsAt, now: now)
         if !reset.isEmpty { parts.append(reset) }
         if window.stale { parts.append("stale reading") }
-        if window.over { parts.append("over the previous cycle") }
+        if window.over { parts.append(window.overNote) }
         return parts.joined(separator: dot)
     }
 

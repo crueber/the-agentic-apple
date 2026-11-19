@@ -112,7 +112,9 @@ enum CLI {
     static func collect(fixture: Bool) -> ([Provider], CycleHistory)? {
         if fixture { return (PreviewFixture.providers, .empty) }
         let now = Date()
-        let history = UsageCache.read(from: AppInfo.cacheURL, now: now.timeIntervalSince1970 * 1000)?.history ?? .empty
+        let cached = UsageCache.read(from: AppInfo.cacheURL, now: now.timeIntervalSince1970 * 1000)
+        let history = cached?.history ?? .empty
+        let baseline = cached?.providers.first { $0.id == .openrouter }?.money?.baseline
         let settings = SettingsSnapshot.read(AppInfo.defaults)
         let box = ResultBox()
         let done = DispatchSemaphore(value: 0)
@@ -120,6 +122,7 @@ enum CLI {
             let resolved = await Store.resolveEnvironment(timeout: Store.environmentTimeout)
             var context = settings.context(searchPath: resolved.searchPath)
             context.environment = resolved.environment
+            context.openrouterBaseline = baseline
             let providers = await Collector.live().collect(context)
             box.set(providers)
             done.signal()

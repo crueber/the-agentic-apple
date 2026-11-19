@@ -39,7 +39,7 @@ extension OpenRouterTests {
 
     static func management(_ t: TestRun) async {
         let reader: OpenRouterCollector.ManagementKeyReader = { _ in "  \(mgmtKey)\n" }
-        let c = OpenRouterCollector(managementKeyReader: reader)
+        let c = OpenRouterCollector(managementKeyReader: reader, analytics: AnalyticsMemo())
         let creditsOK = #"{"data":{"total_credits":100.5,"total_usage":25.75}}"#
         let pastMs = LogicTests.utc(2026, 11, 1)
         let futureMs = LogicTests.utc(2027, 1, 1)
@@ -69,7 +69,8 @@ extension OpenRouterTests {
             let http = OpenRouterStubHTTP([keysPage0: .json(200, keys), creditsURL: .json(200, creditsOK),
                                            keyURL: .fixture(200, "key.json")])
             let p = await c.collect(mgmtContext(home: home, env: ["OPENROUTER_API_KEY": envKey], http: http))
-            t.equal(http.calls.map(\.url), [keysPage0, creditsURL], "keys then credits, no /key")
+            t.equal(http.calls.map(\.url), [keysPage0, creditsURL, "https://openrouter.ai/api/v1/analytics/meta"],
+                    "keys, credits, then the (optional) analytics baseline; no /key")
             t.check(http.calls.allSatisfy { $0.headers["Authorization"] == "Bearer \(mgmtKey)" }, "management key, trimmed")
             t.equal(p.available, true)
             t.equal(p.error, "")
@@ -165,7 +166,7 @@ extension OpenRouterTests {
         // The environment variable wins and the reader is never consulted.
         do {
             let called = Flag()
-            let spy = OpenRouterCollector(managementKeyReader: { _ in called.set(); return "sk-or-v1-from-keychain-0000" })
+            let spy = OpenRouterCollector(managementKeyReader: { _ in called.set(); return "sk-or-v1-from-keychain-0000" }, analytics: AnalyticsMemo())
             let http = OpenRouterStubHTTP([keysPage0: .json(200, keys), creditsURL: .json(200, creditsOK)])
             let p = await spy.collect(mgmtContext(home: Fixtures.tempHome("or-mgmt-env"),
                                                   env: ["OPENROUTER_MANAGEMENT_KEY": " sk-or-v1-from-env-key-1234 "], http: http))
@@ -177,7 +178,7 @@ extension OpenRouterTests {
         // A malformed or missing management key: the per-key view, exactly as before.
         do {
             for bad in [nil, "", "   ", "short", "sk-or-v1 with spaces inside it"] as [String?] {
-                let fallback = OpenRouterCollector(managementKeyReader: { _ in bad })
+                let fallback = OpenRouterCollector(managementKeyReader: { _ in bad }, analytics: AnalyticsMemo())
                 let http = standardHTTP()
                 let p = await fallback.collect(mgmtContext(home: Fixtures.tempHome("or-mgmt-bad"),
                                                            env: ["OPENROUTER_API_KEY": envKey], http: http))
@@ -191,7 +192,7 @@ extension OpenRouterTests {
         // A Keychain that can't be read is an error (the merge keeps the last numbers), not "no key".
         do {
             struct Stuck: Error {}
-            let stuck = OpenRouterCollector(managementKeyReader: { _ in throw Stuck() })
+            let stuck = OpenRouterCollector(managementKeyReader: { _ in throw Stuck() }, analytics: AnalyticsMemo())
             let http = standardHTTP()
             let p = await stuck.collect(mgmtContext(home: Fixtures.tempHome("or-mgmt-stuck"),
                                                     env: ["OPENROUTER_API_KEY": envKey], http: http))

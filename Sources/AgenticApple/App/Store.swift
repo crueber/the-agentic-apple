@@ -181,6 +181,8 @@ final class Store: ObservableObject {
         writeCache()
         var context = settings.snapshot.context(searchPath: searchPath)
         context.environment = environment
+        // This month's analytics baseline, if the last collection (or the cache) has it.
+        context.openrouterBaseline = providers.first { $0.id == .openrouter }?.money?.baseline
         let collector = self.collector
         Task.detached(priority: .userInitiated) { [weak self] in
             let fresh = await collector.collect(context)

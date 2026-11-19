@@ -9,6 +9,14 @@ public struct CommandResult: Sendable {
     public var timedOut: Bool
     public var launched: Bool
 
+    public init(status: Int32, stdout: Data = Data(), stderr: Data = Data(), timedOut: Bool = false, launched: Bool = true) {
+        self.status = status
+        self.stdout = stdout
+        self.stderr = stderr
+        self.timedOut = timedOut
+        self.launched = launched
+    }
+
     public var ok: Bool { launched && !timedOut && status == 0 }
     public var stdoutText: String { String(decoding: stdout, as: UTF8.self) }
     public var stderrText: String { String(decoding: stderr, as: UTF8.self) }

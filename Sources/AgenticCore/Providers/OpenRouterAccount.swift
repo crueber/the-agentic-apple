@@ -30,7 +30,8 @@ import Foundation
 /// - `managementKeyService`, `managementKeyAccount`, `managementKeyEnv`, `keysURL`,
 ///   `managementKeysPage`, `accountSource`
 /// - `normalizedManagementKey(_:) -> String?`, `managementKeyProblem(_:) -> String?`
-/// - `readManagementKeyFromKeychain(_:) throws -> String?` (throws only when `security` can't answer)
+/// - Keychain access: `OpenRouterKeychain.swift` (`KeychainTool`, `ManagementKeyMemo`,
+///   `defaultManagementKeyReader`)
 /// - `verifyManagementKey(_:http:) async -> (ok: Bool, message: String)` (Settings › Save)
 /// - `nextReset(_ interval: String?, now: Date) -> Double`, `nextDailyReset`,
 ///   `nextWeeklyReset`, `nextMonthlyReset` (epoch ms, UTC, strictly after `now`)
@@ -48,6 +49,13 @@ extension OpenRouterCollector {
     static let maxKeyRows = 12
     static let managementKeyMinLength = 16
     static let managementKeyMaxLength = 512
+    /// Letters, digits and `-_.~+/=:` — everything an OpenRouter key uses, nothing
+    /// `security -i` would split or unescape.
+    static let allowedKeyCharacters: CharacterSet = {
+        var set = CharacterSet()
+        set.insert(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~+/=:")
+        return set
+    }()
 
     static let expiredStatus = "Management key expired or invalid"
     static let expiredHint = "Create a new one at openrouter.ai/settings/management-keys and save it in Settings"
@@ -67,7 +75,9 @@ extension OpenRouterCollector {
     public static func managementKeyProblem(_ raw: String) -> String? {
         let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if key.isEmpty { return "Paste a management key first" }
-        if key.unicodeScalars.contains(where: { !$0.isASCII || $0.value <= 0x20 || $0.value == 0x7F }) {
+        // Strict on purpose: the key is written to `security -i` as one token,
+        // so no space, quote, backslash or anything else its parser treats specially.
+        if key.unicodeScalars.contains(where: { !allowedKeyCharacters.contains($0) }) {
             return "A key has no spaces or special characters"
         }
         if key.count < managementKeyMinLength { return "That looks too short for an OpenRouter key" }
@@ -75,40 +85,25 @@ extension OpenRouterCollector {
         return nil
     }
 
-    /// `security` rather than the Security framework: the app is ad-hoc signed,
-    /// so its identity changes with every update, while `/usr/bin/security` —
-    /// trusted in the item's access list — does not. The key comes back on
-    /// stdout only; the command line carries the service and account names.
-    /// A missing item (any non-zero exit) is "no key"; only a `security` that
-    /// could not run or did not answer in time throws, so a stuck Keychain
-    /// keeps the last numbers instead of switching views.
-    @Sendable public static func readManagementKeyFromKeychain(_ context: CollectorContext) throws -> String? {
-        let r = Shell.run("/usr/bin/security",
-                          ["find-generic-password", "-s", managementKeyService, "-a", managementKeyAccount, "-w"],
-                          timeout: 10)
-        if r.timedOut || !r.launched { throw KeychainUnreadable() }
-        guard r.ok, r.stdout.count <= 4096 else { return nil }
-        return normalizedManagementKey(r.stdoutText)
-    }
-
-    struct KeychainUnreadable: Error {}
-
-    static let unreadableKeychain = "The OpenRouter management key could not be read from the Keychain"
-
-    enum ManagementKeyLookup { case key(String), none, unreadable }
+    enum ManagementKeyLookup { case key(String), none, unreadable(String) }
 
     /// The environment first (no process spawned), then the injected reader.
     static func resolveManagementKey(_ context: CollectorContext, reader: @escaping ManagementKeyReader) async -> ManagementKeyLookup {
         if let env = normalizedManagementKey(context.environment[managementKeyEnv]) { return .key(env) }
         // `try?` would flatten "threw" into "no key"; keep them apart.
         let read: Result<String?, Error> = await Blocking.run { Result { try reader(context) } }
-        guard case .success(let found) = read else { return .unreadable }
+        switch read {
+        case .failure(let e as ManagementKeyReadError): return .unreadable(e.message)
+        case .failure: return .unreadable(unreadableKeychain)
+        case .success: break
+        }
+        guard case .success(let found) = read else { return .unreadable(unreadableKeychain) }
         return normalizedManagementKey(found).map { .key($0) } ?? .none
     }
 
     // MARK: - Collect
 
-    static func collectAccount(_ key: String, _ context: CollectorContext) async -> Provider {
+    static func collectAccount(_ key: String, _ context: CollectorContext, analytics: AnalyticsMemo = .shared) async -> Provider {
         // A detected key belongs in the bar, so a rejected one shows its error.
         var provider = Provider(id: .openrouter, available: true, tier: accountTier, source: accountSource)
         let http = context.httpClient
@@ -142,6 +137,8 @@ extension OpenRouterCollector {
             limits.append(creditsLimit(credits))
         }
         limits += keyLimits(enabled, now: context.now)
+        // Optional: never an error, the Logic layer falls back to observed history.
+        money.baseline = await accountBaseline(key, context, memo: analytics)
 
         provider.money = money
         provider.limits = limits
@@ -173,15 +170,22 @@ extension OpenRouterCollector {
 
     enum Endpoint { case keys, credits }
 
-    static func fetch(_ url: String, key: String, http: HTTPClient) async -> Result<[String: Any], ManagementFailure> {
-        let headers = [
+    /// GET, or a JSON POST when `body` is given.
+    static func fetch(_ url: String, key: String, http: HTTPClient, body: Data? = nil) async -> Result<[String: Any], ManagementFailure> {
+        var headers = [
             "Authorization": "Bearer " + key,
             "Accept": "application/json",
             "User-Agent": "the-agentic-apple/1.0",
         ]
         let response: HTTPResponse
         do {
-            response = try await http.get(url, headers)
+            if let body {
+                guard let post = http.post else { return .failure(.transport("POST is not available")) }
+                headers["Content-Type"] = "application/json"
+                response = try await post(url, headers, body)
+            } else {
+                response = try await http.get(url, headers)
+            }
         } catch let e as HTTPError {
             return .failure(.transport(scrub(e.description, key: key)))
         } catch {

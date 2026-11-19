@@ -24,15 +24,30 @@ final class OpenRouterStubHTTP: @unchecked Sendable {
         return routes[url]
     }
 
-    var client: HTTPClient {
-        HTTPClient { [self] url, headers in
-            switch record(url, headers) {
-            case .json(let status, let body)?: return HTTPResponse(status: status, body: Data(body.utf8))
-            case .fixture(let status, let name)?: return HTTPResponse(status: status, body: Fixtures.data("openrouter/" + name))
-            case .fail(let e)?: throw e
-            case nil: throw HTTPError.transport("no route for \(url)")
-            }
+    /// POST bodies, in order (routes for POSTs are keyed "POST <url>").
+    private(set) var postBodies: [String] = []
+
+    private func recordPost(_ url: String, _ headers: [String: String], _ body: Data) -> Reply? {
+        lock.lock(); defer { lock.unlock() }
+        requests.append(("POST " + url, headers))
+        postBodies.append(String(decoding: body, as: UTF8.self))
+        return routes["POST " + url]
+    }
+
+    var bodies: [String] { lock.lock(); defer { lock.unlock() }; return postBodies }
+
+    static func answer(_ reply: Reply?, _ url: String) throws -> HTTPResponse {
+        switch reply {
+        case .json(let status, let body)?: return HTTPResponse(status: status, body: Data(body.utf8))
+        case .fixture(let status, let name)?: return HTTPResponse(status: status, body: Fixtures.data("openrouter/" + name))
+        case .fail(let e)?: throw e
+        case nil: throw HTTPError.transport("no route for \(url)")
         }
+    }
+
+    var client: HTTPClient {
+        HTTPClient(get: { [self] url, headers in try Self.answer(record(url, headers), url) },
+                   post: { [self] url, headers, body in try Self.answer(recordPost(url, headers, body), url) })
     }
 }
 
@@ -264,5 +279,7 @@ enum OpenRouterTests {
 
         await management(t)
         await resetDates(t)
+        keychain(t)
+        await analytics(t)
     }
 }

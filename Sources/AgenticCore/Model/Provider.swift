@@ -65,6 +65,27 @@ public struct Activity: Codable, Equatable, Sendable {
     public static let empty = Activity()
 }
 
+/// OpenRouter account-wide: the average monthly spend of the two calendar
+/// months before `month` (UTC), from OpenRouter's analytics. Cached with the
+/// provider, so it is queried at most once a month.
+public struct MonthlyBaseline: Codable, Equatable, Sendable {
+    /// "2026-11": the month this is the baseline *for* (the current month when read).
+    public var month: String
+    /// Dollars per month, > 0.
+    public var average: Double
+    /// Months averaged (2).
+    public var months: Int
+    /// "Sep–Oct".
+    public var label: String
+
+    public init(month: String, average: Double, months: Int = 2, label: String) {
+        self.month = month
+        self.average = average
+        self.months = months
+        self.label = label
+    }
+}
+
 /// OpenRouter's money block.
 public struct Money: Codable, Equatable, Sendable {
     /// `label` of the account-wide (management key) block: every key's spend.
@@ -77,9 +98,12 @@ public struct Money: Codable, Equatable, Sendable {
     public var totalCredits: Double?  // account credits purchased
     public var resetInterval: String  // "monthly", "weekly", "daily", ""
     public var resetsAt: Double       // epoch ms
+    /// Account-wide only: the previous two months' average spend (analytics), nil when unknown.
+    public var baseline: MonthlyBaseline?
 
     public init(label: String = "", limit: Double? = nil, spend: Double = 0, credits: Double? = nil,
-                totalCredits: Double? = nil, resetInterval: String = "", resetsAt: Double = 0) {
+                totalCredits: Double? = nil, resetInterval: String = "", resetsAt: Double = 0,
+                baseline: MonthlyBaseline? = nil) {
         self.label = label
         self.limit = limit
         self.spend = spend
@@ -87,6 +111,7 @@ public struct Money: Codable, Equatable, Sendable {
         self.totalCredits = totalCredits
         self.resetInterval = resetInterval
         self.resetsAt = resetsAt
+        self.baseline = baseline
     }
 }
 
@@ -159,13 +184,16 @@ public struct CollectorContext: Sendable {
     public var now: Date
     /// Inject HTTP for tests. nil = real network.
     public var http: HTTPClient?
+    /// OpenRouter account-wide: the baseline from the last collection (the
+    /// cache), so analytics is not queried again within the same month.
+    public var openrouterBaseline: MonthlyBaseline?
 
     public init(home: URL = FileManager.default.homeDirectoryForCurrentUser,
                 environment: [String: String] = ProcessInfo.processInfo.environment,
                 searchPath: [String] = [],
                 opencodeCommand: String = "", codexCommand: String = "", claudeCommand: String = "",
                 grokHome: String = "", botHome: String = "", authFile: String = "",
-                now: Date = Date(), http: HTTPClient? = nil) {
+                now: Date = Date(), http: HTTPClient? = nil, openrouterBaseline: MonthlyBaseline? = nil) {
         self.home = home
         self.environment = environment
         self.searchPath = searchPath
@@ -177,6 +205,7 @@ public struct CollectorContext: Sendable {
         self.authFile = authFile
         self.now = now
         self.http = http
+        self.openrouterBaseline = openrouterBaseline
     }
 
     public var nowMs: Double { now.timeIntervalSince1970 * 1000 }

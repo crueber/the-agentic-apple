@@ -140,22 +140,26 @@ No prompt text, response text or session content is stored or displayed.
   before it is displayed.
 - **OpenRouter management key.** Optional; pasted into **Settings → Advanced**
   (a secure field) or exported as `OPENROUTER_MANAGEMENT_KEY`. **Save** trims
-  it, rejects anything that does not look like a key (empty, whitespace or
-  non-ASCII inside, implausible length), and writes it with the Security
-  framework (`SecItemDelete` then `SecItemAdd`, `SecItemUpdate` only if the old
-  item cannot be deleted) to the **login Keychain** as a generic password:
-  service `com.crueber.agentic-apple.openrouter-management-key`, account
-  `default`. The item is created with an access list (`SecAccessCreate`,
-  `SecTrustedApplicationCreateFromPath`) that trusts the app and
-  `/usr/bin/security`. Those APIs are deprecated, but they are the only way to
-  set a file-based Keychain item's access list, and they matter here: the app
-  is ad-hoc signed, so its identity changes with every update, while
-  `/usr/bin/security` does not — the collector reads the item through
-  `security find-generic-password -s … -a default -w` (key on stdout, never on
-  argv), as it does for Claude, so updates do not bring back a prompt. The app
-  itself never reads the secret back: Settings only checks that the item
-  exists (attributes, no data) and shows `•••• saved`. **Save** also sends the
-  key once to `GET /api/v1/keys` to verify it. **Remove** deletes the item.
+  it, accepts only letters, digits and `-_.~+/=:` (so it is always one token
+  for the command below) and a sane length, and has **`/usr/bin/security`
+  create the item**: `security -i` (interactive) is started with no arguments
+  but `-i`, and two commands are written to its **stdin** —
+  `delete-generic-password -s com.crueber.agentic-apple.openrouter-management-key -a default`
+  and `add-generic-password -U -s … -a default -l "…" -w <key>` — so the key
+  never appears on a command line or in the process list. The result is a
+  generic password in the **login Keychain** whose creator and trusted
+  application is `security`. That matters: an item created by the app itself
+  is bound to the app's ad-hoc signature (its partition list), so every read
+  by `security` would prompt, and the signature changes with every update.
+  The collector reads the item with `security find-generic-password -s … -a
+  default -w` (key on stdout) **once per launch** and keeps it in memory;
+  Save and Remove update that copy. A refused read is remembered for the run
+  (no repeated prompts) and Settings asks to re-save the key. Settings checks
+  that the item exists with `find-generic-password` *without* `-w` (no secret,
+  no prompt) and shows `•••• saved`. The app no longer uses the Security
+  framework at all. **Save** also sends the
+  key once to `GET /api/v1/keys` to verify it. **Remove** runs
+  `security delete-generic-password -s … -a default`.
   The key is never written to the defaults domain, the cache, the update log,
   an error, `--json`/`--text` output or the `Provider` model; errors from
   OpenRouter are scrubbed of it. When a management key is set it replaces the
@@ -178,7 +182,13 @@ The app makes requests of its own to three destinations:
   - `GET https://openrouter.ai/api/v1/credits` (optional)
   - with a management key instead: `GET https://openrouter.ai/api/v1/keys?offset=N`
     (at most 10 pages per refresh, and once when you click **Save**) and
-    `GET https://openrouter.ai/api/v1/credits`
+    `GET https://openrouter.ai/api/v1/credits`; for the two-month baseline, at
+    most once per month and launch (the result is cached):
+    `GET https://openrouter.ai/api/v1/analytics/meta` and
+    `POST https://openrouter.ai/api/v1/analytics/query` with
+    `Content-Type: application/json` and a fixed-shape body
+    (`{"metrics":["<cost metric>"],"granularity":"month","time_range":{…}}`,
+    under 16 KB). POSTs follow the same rules as GETs.
 - Anthropic: `GET https://api.anthropic.com/api/oauth/usage`
 - GitHub, for updates (about 2 minutes after launch, then every 6 hours, only
   when `autoUpdate` is on; or when you choose **Check for Updates…**):
@@ -204,7 +214,10 @@ nothing about you or your agents.
 | --- | --- | --- |
 | your login shell (`$SHELL`, else `/bin/zsh`) | `-l -i -c` with a fixed script printing `PATH` and an allowlist of variables | once per launch, in its own session with no terminal, bounded by a timeout |
 | `/usr/bin/security` | `find-generic-password -s "Claude Code-credentials" -w` | each refresh |
-| `/usr/bin/security` | `find-generic-password -s com.crueber.agentic-apple.openrouter-management-key -a default -w` | each refresh, unless `OPENROUTER_MANAGEMENT_KEY` is set |
+| `/usr/bin/security` | `find-generic-password -s com.crueber.agentic-apple.openrouter-management-key -a default -w` | once per launch, unless `OPENROUTER_MANAGEMENT_KEY` is set |
+| `/usr/bin/security` | `find-generic-password -s … -a default` (no `-w`) | when Settings shows the key's status |
+| `/usr/bin/security` | `-i`, with `delete-generic-password …` and `add-generic-password -U … -w <key>` on stdin | when you click **Save** |
+| `/usr/bin/security` | `delete-generic-password -s … -a default` | when you click **Remove** |
 | `/usr/bin/sqlite3` | `-readonly -json -cmd ".timeout 2000" <opencode.db> <fixed query>` | each refresh, when OpenCode's store exists |
 | `opencode` | `api GET /api/experimental/usage/limits`, then `api --standalone GET …`; `auth export openrouter`, `auth export` | each refresh |
 | `codex` | `-s read-only -a on-request app-server` | each refresh, when Codex is signed in to a plan; shut down after it answers |

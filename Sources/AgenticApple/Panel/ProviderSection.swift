@@ -93,7 +93,7 @@ struct ProviderSection: View {
             .layoutPriority(1)
             Spacer(minLength: 6)
             if let s = summary, s.mode == .meter {
-                Text(s.stale ? Format.dash : Format.percentText(s.percent))
+                Text(Summary.windowValueText(s))
                     .font(.system(size: 13, weight: .semibold).monospacedDigit())
                     .foregroundStyle(state.palette.color(s.color, scheme))
                     .opacity(s.stale ? 0.55 : 1)

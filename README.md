@@ -178,8 +178,16 @@ Management keys cannot run completions; the app only uses one to read usage.
 - **Where it lives:** only in your login Keychain, as the generic password
   `com.crueber.agentic-apple.openrouter-management-key` (account `default`).
   It is not a defaults key, and it is never cached, logged or shown again; the
-  field reads `•••• saved` afterwards. `OPENROUTER_MANAGEMENT_KEY`, exported
-  by your login shell, works too and wins over the saved key.
+  field reads `•••• saved` afterwards. The item is created by Apple's
+  `/usr/bin/security` (the key goes to it on stdin, never on a command line),
+  so `security` owns it and the app's reads never raise a Keychain prompt,
+  even after an update; the key is read once per launch and kept in memory.
+  `OPENROUTER_MANAGEMENT_KEY`, exported by your login shell, works too and
+  wins over the saved key.
+- **Tested an early 1.1.0?** Its first build created the item itself, which
+  makes macOS ask for the key at every launch. Click **Remove**, then paste the
+  key and **Save** once; Settings says *Re-save the key once to stop Keychain
+  prompts* when it detects this.
 - **Save** stores it, checks it with one `GET /api/v1/keys` and says
   *Verified · N keys* or why not (expired or invalid, not allowed, or — for
   some personal accounts — unable to list keys). **Remove** deletes the
@@ -187,9 +195,15 @@ Management keys cannot run completions; the app only uses one to read usage.
 - **When it is set it takes over** — the inference key is not looked up at
   all. The app reads `GET /api/v1/keys` (enabled, unexpired keys, 100 per page,
   up to 10 pages) and `GET /api/v1/credits`, and shows:
-  - **All keys · this month** — the sum of every key's monthly spend, in
-    dollars until a previous month has been observed, then a meter against
-    that month (yellow when over), exactly like the per-key cycle;
+  - **All keys · this month** — the sum of every key's monthly spend, as a
+    meter against the **average of the previous two calendar months**
+    (UTC), captioned like *$49.93 of $61.20 avg (Sep–Oct) · Resets in 11d 7h*.
+    Over the average it turns yellow, says *over the 2-month average* and
+    shows the real percent (say 120%; the bar is full). The average comes from
+    OpenRouter's analytics (`GET /api/v1/analytics/meta`, then one
+    `POST /api/v1/analytics/query` per month, cached); if that isn't
+    available, from the months the app has observed itself (two, or one —
+    *avg (1 month)*). With no baseline at all it is the dollar figure only;
   - **Credits** — what is left on the account, as a plain figure
     (*$20.81 left*); lifetime purchases and usage are not shown;
   - **the top N keys by spend this month** — N is **Show the top N keys**
@@ -200,10 +214,11 @@ Management keys cannot run completions; the app only uses one to read usage.
     *$X.XX this month*. Rows are titled with the key's name (or `Key …` and
     four characters — never the full label).
 
-  The **menu bar** shows only the mark and the credits left (`$20.81`), in the
-  normal colour, in the Meters and Percentages styles — no meters and no key
-  rows (Marks only stays marks only). If OpenRouter does not report credits
-  for the account, it shows this month's spend instead. The tooltip and
+  The **menu bar** shows the mark, the credits left (`$20.81`, normal colour)
+  and one meter — this month against the two-month average — when there is a
+  baseline (Percentages style: `$20.81 · 82%`). Never key rows; Marks only
+  stays marks only. If OpenRouter does not report credits for the account, it
+  shows this month's spend instead. The tooltip and
   `--text` read `OpenRouter: $20.81 credits left · $49.93 this month`.
 - **If the management key fails** (expired, revoked, offline) the app says so
   and keeps the last account-wide numbers; it does not quietly switch back to
@@ -718,14 +733,16 @@ after `-w`, so `security` asks for it instead of taking it on the command line).
   display.
 - **The OpenRouter management key** is stored only in your login Keychain
   (generic password `com.crueber.agentic-apple.openrouter-management-key`,
-  account `default`), written by the app with an access list that trusts the
-  app and `/usr/bin/security`. The collector reads it back with
-  `security find-generic-password … -w` (the key arrives on stdout, never on a
-  command line). It is never put in the defaults domain, the cache, logs,
+  account `default`), created by `/usr/bin/security -i` with the key written
+  to its stdin, never on a command line. The collector reads it back once per
+  launch with `security find-generic-password … -w` (the key arrives on
+  stdout) and keeps it in memory. It is never put in the defaults domain, the cache, logs,
   errors or `--json`/`--text` output, and the field never shows it again.
 - **Network requests made by the app** go to three destinations:
   1. OpenRouter's `/api/v1/key` and `/api/v1/credits` — or, with a management
-     key, `/api/v1/keys` and `/api/v1/credits`;
+     key, `/api/v1/keys` and `/api/v1/credits`, plus at most once a month
+     `/api/v1/analytics/meta` and a `POST` to `/api/v1/analytics/query` (a small
+     JSON body: the cost metric and the previous two months);
   2. Anthropic's `/api/oauth/usage`;
   3. GitHub, for [updates](#updates): `api.github.com` for this repository's
      `releases/latest`, then the release's `.dmg` and `.dmg.sig` from
@@ -827,7 +844,9 @@ Claude stays visible either way, with its last numbers marked stale.
 
 **The Keychain prompt keeps coming back.** Click **Always Allow**, not
 **Allow**. If you clicked **Deny**, the prompt returns at the next refresh;
-choose **Always Allow** then.
+choose **Always Allow** then. If the prompt is for the *OpenRouter management
+key*, the item was made by an early 1.1.0 build: in **Settings → Advanced**
+click **Remove**, then paste the key and **Save** once.
 
 **"codex not found in PATH".** Set the full path to `codex` in
 **Settings → Advanced**. Check what your shell resolves with `command -v codex`

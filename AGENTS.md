@@ -14,9 +14,9 @@ from Omarchy's `omarchy-agent-usage-claude` / `omarchy-agent-usage-codex`
 - **Command Line Tools only.** No Xcode project, no `xcodebuild`, no XCTest or
   swift-testing. Build with SwiftPM; `scripts/build-app.sh` assembles and
   ad-hoc signs the `.app`. Tests are the `agentic-selftest` executable.
-- **No dependencies.** Foundation, AppKit, SwiftUI, ServiceManagement,
-  CryptoKit (update signatures) and Security (only `App/ManagementKeyStore`,
-  writing the OpenRouter management key) only.
+- **No dependencies.** Foundation, AppKit, SwiftUI, ServiceManagement and
+  CryptoKit (update signatures) only. The OpenRouter management key's Keychain
+  item is handled through `/usr/bin/security`, not the Security framework.
 - **macOS 14+**, Swift tools 6.0, language mode 5 for every target.
 - **No Node, no Omarchy.** External tools (`opencode`, `codex`, `mise`,
   `sqlite3`, `security`) are only invoked when present.
@@ -50,8 +50,9 @@ from Omarchy's `omarchy-agent-usage-claude` / `omarchy-agent-usage-codex`
   - `App/` — `CLI` (`--text`, `--json`, `--render-preview`, `--fixture`),
     `AppDelegate` (single instance, wake, About), `Store` (fetch lifecycle,
     cache, order/switch writes), `AppSettings` (UserDefaults keys),
-    `ManagementKeyStore` (writes/removes the OpenRouter management key in the
-    login Keychain; never reads the secret back),
+    `ManagementKeyStore` (thin wrapper over Core's `KeychainTool` and
+    `ManagementKeyMemo`: save/remove the OpenRouter management key; never reads
+    the secret back),
     `AppInfo` (name, bundle id, defaults domain, cache URL), `LoginItem`.
   - `Bar/` — `StatusItemController` (status item, clicks, keys, menu,
     popover), `BarView`.
@@ -89,6 +90,13 @@ epoch milliseconds (0 = unknown). OpenRouter's window is derived from `money`
 and the cycle history in `Logic/State.swift`; with an inference key its
 `limits` stay empty. With a management key, `money.label` is
 `Money.accountWideLabel` ("All keys", Σ `usage_monthly`, no limit) and
+`money.baseline` (`MonthlyBaseline`, from `/api/v1/analytics/meta` +
+`POST /api/v1/analytics/query`, at most once a month — `AnalyticsMemo` in the
+run, `CollectorContext.openrouterBaseline` from the cache across launches) is
+the previous two months' average; without it `Meters.accountBaseline` averages
+`CycleHistory.previous`/`older`. The month window is a meter against that
+baseline (percent may exceed 100; yellow when over), the bar draws credits
+left plus that one meter. `HTTPClient.post` exists only for analytics.
 `limits` holds `credits` (a value row: `Limit.amount` = credits left), then
 up to 12 `key-<hash8>` rows ranked by `usage_monthly` (zero left out; a limited
 key is a meter, an unlimited one a value row with `amount` = monthly spend).
@@ -101,7 +109,7 @@ bar shows only `Meters.barDollarsText` (credits left, else monthly spend).
 
 | Provider | Source |
 | --- | --- |
-| OpenRouter | Management key first: `OPENROUTER_MANAGEMENT_KEY` → Keychain `com.crueber.agentic-apple.openrouter-management-key` / `default` via `/usr/bin/security … -w`; then `GET /api/v1/keys?offset=N` (≤ 10 pages of 100) and `/api/v1/credits`, no fallback on failure. Otherwise `OPENROUTER_API_KEY` → `authFile` / `OPENROUTER_AUTH_FILE` → `$XDG_DATA_HOME` or `~/.local/share/opencode/auth.json` → `opencode auth export [openrouter]`; then `GET /api/v1/key`, `/api/v1/credits` |
+| OpenRouter | Management key first: `OPENROUTER_MANAGEMENT_KEY` → Keychain `com.crueber.agentic-apple.openrouter-management-key` / `default` via `/usr/bin/security … -w` (once per process); then `GET /api/v1/keys?offset=N` (≤ 10 pages of 100) and `/api/v1/credits`, no fallback on failure; at most monthly `GET /api/v1/analytics/meta` + `POST /api/v1/analytics/query` for the two-month baseline. Otherwise `OPENROUTER_API_KEY` → `authFile` / `OPENROUTER_AUTH_FILE` → `$XDG_DATA_HOME` or `~/.local/share/opencode/auth.json` → `opencode auth export [openrouter]`; then `GET /api/v1/key`, `/api/v1/credits` |
 | OpenCode | `opencode api GET /api/experimental/usage/limits`, retry `opencode api --standalone GET …`; activity from `opencode.db` via `/usr/bin/sqlite3 -readonly -json` |
 | Grok | last `billing: fetched credits config` line of `~/.grok/logs/unified.jsonl`; `sessions/*/*/usage.json`; Grok Bot `*.blob` under `~/Library/Application Support/Grok Bot/sand-client-persistence`, then `~/.config/Grok Bot/…` (Grok Bot alone is enough: no CLI snapshot → Bot meter only, tier from `grokPlanLabel`) |
 | Codex | `codex -s read-only -a on-request app-server`: `initialize` → `initialized` → `account/rateLimits/read` (`rateLimitsByLimitId`, else legacy `rateLimits`), `account/read` only for the plan |
@@ -124,11 +132,15 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
    key and Claude's token travel only in an HTTPS `Authorization` header.
    Codex's token is never read at all — only `auth_mode` and key presence.
    The single exception to "read-only" is the OpenRouter management key the
-   user pastes into Settings: `ManagementKeyStore` writes it only to the login
-   Keychain (access list: the app and `/usr/bin/security`), the collector
-   reads it only through `security … -w` (injectable `managementKeyReader`),
-   and it never reaches UserDefaults, the cache, logs, argv, errors, CLI
-   output or the `Provider`. It is not a settings key.
+   user pastes into Settings: `KeychainTool` has `/usr/bin/security -i` create
+   the login-Keychain item with the key on **stdin** (never argv; the key is
+   limited to `[A-Za-z0-9-_.~+/=:]` so it is one `security -i` token), so
+   `security` owns it and its reads never prompt. The collector reads it once
+   per process through `security … -w` (`ManagementKeyMemo`; injectable
+   `managementKeyReader` / `KeychainTool.Runner`), and it never reaches
+   UserDefaults, the cache, logs, argv, errors, CLI output or the `Provider`.
+   It is not a settings key. Never create that item with `SecItemAdd`: an
+   app-created item is bound to the ad-hoc signature and prompts on every read.
 2. **`available` decides the bar.** Set it only for a plan, limits, a tier or
    a detected key. An agent with nothing stays out; never draw an empty shell.
 3. **Collectors never throw.** Failures become `error` (and `hint`); the
@@ -150,8 +162,9 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
    percentages carry `MeterState` colours. Colour rules live in
    `Meters` (`Logic/State.swift`): critical ≥ `criticalPercent` or `limited`,
    warning ≥ `warnPercent`, OpenRouter yellow when over the previous cycle.
-7. **OpenRouter history** keeps one current and one previous cycle; the
-   previous is kept only when observed within six hours of its end.
+7. **OpenRouter history** keeps one current and up to two completed cycles
+   (`previous`, `older`); a cycle is kept only when observed within six hours
+   of its end. The per-key view uses `previous` only.
 8. **Order and visibility.** `providerOrder` is a comma-separated id string;
    missing ids follow in `ProviderID.defaultOrder`. `DisplayState.panelProviders`
    is every available agent in that order (so a hidden one can be switched back

@@ -329,7 +329,8 @@ private struct OpenRouterKeySection: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var store: Store
     @State private var draft = ""
-    @State private var saved = ManagementKeyStore.isSaved()
+    @State private var saved = false
+    @State private var needsResave = false
     @State private var message = ""
     @State private var messageIsError = false
     @State private var working = false
@@ -379,10 +380,19 @@ private struct OpenRouterKeySection: View {
                 }
             }
         }
+        .task { await refreshStatus() }
+    }
+
+    /// `security find-generic-password` without `-w` (no secret, no prompt), off the main thread.
+    private func refreshStatus() async {
+        let isSaved = await Task.detached(priority: .userInitiated) { ManagementKeyStore.isSaved() }.value
+        saved = isSaved
+        needsResave = ManagementKeyStore.needsResave
     }
 
     private var statusText: String {
         if !message.isEmpty { return message }
+        if saved && needsResave { return "Saved in Keychain \u{00B7} " + OpenRouterCollector.reSaveHint }
         return saved ? "Saved in Keychain" : "Not set \u{2014} using the per-key view"
     }
 
@@ -398,11 +408,10 @@ private struct OpenRouterKeySection: View {
         Task { @MainActor in
             // Keychain write and verification both run off the main thread.
             let stored: String? = await Task.detached(priority: .userInitiated) { () -> String? in
-                do { try ManagementKeyStore.save(candidate); return nil }
-                catch { return String(describing: error) }
+                ManagementKeyStore.save(candidate)
             }.value
             draft = ""
-            saved = ManagementKeyStore.isSaved()
+            await refreshStatus()
             if let stored {
                 working = false
                 message = stored
@@ -423,12 +432,11 @@ private struct OpenRouterKeySection: View {
         working = true
         Task { @MainActor in
             let failure: String? = await Task.detached(priority: .userInitiated) { () -> String? in
-                do { try ManagementKeyStore.remove(); return nil }
-                catch { return String(describing: error) }
+                ManagementKeyStore.remove()
             }.value
             working = false
             draft = ""
-            saved = ManagementKeyStore.isSaved()
+            await refreshStatus()
             message = failure ?? ""
             messageIsError = failure != nil
             store.refreshAfterCredentialChange()

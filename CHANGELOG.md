@@ -6,22 +6,27 @@
   management key (from openrouter.ai/settings/management-keys) into
   **Settings → Advanced → OpenRouter** and OpenRouter covers every key on the
   account, not just one inference key:
-  - **All keys · this month** — every key's monthly spend, in dollars until a
-    previous month has been observed, then a meter against it (yellow when
-    over), like the per-key cycle;
+  - **All keys · this month** — every key's monthly spend as a meter against
+    the average of the previous two calendar months (*$49.93 of $61.20 avg
+    (Sep–Oct)*), from OpenRouter's analytics (queried at most once a month),
+    else from the months the app has observed; yellow and the real percent
+    when over;
   - **Credits** — the credits left (*$20.81 left*), with no lifetime totals;
   - the top N keys by spend this month (**Show the top N keys**, default 3,
     0–12): a meter against the key's limit with its reset, or
     *$X.XX this month* for a key without a limit. Unused keys are left out.
 
-  The menu bar shows just the credits left (`$20.81`) beside the mark — or
-  this month's spend when credits aren't available. **Save** verifies the
+  The menu bar shows the credits left (`$20.81`) beside the mark — or this
+  month's spend when credits aren't available — and that one monthly meter. **Save** verifies the
   key (*Verified · N keys*, or why not); **Remove** returns to the per-key
   view. `OPENROUTER_MANAGEMENT_KEY` from your login shell works too.
 - **Stored only in the Keychain.** The management key lives in your login
   Keychain (`com.crueber.agentic-apple.openrouter-management-key`), never in
   settings, the cache, logs or CLI output, and is never shown again after
-  saving. A failing management key is reported (for example *Management key
+  saving. The item is created by `/usr/bin/security` (key on stdin), so reading
+  it never prompts, and it is read once per launch. **If you tested an early
+  1.1.0 build and macOS keeps asking for the key, click Remove, then Save the
+  key once.** A failing management key is reported (for example *Management key
   expired or invalid*) and the last numbers are kept; the app does not quietly
   fall back to the inference key.
 - Without a management key, OpenRouter behaves exactly as before.

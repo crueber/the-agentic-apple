@@ -8,10 +8,14 @@ import Foundation
 /// Public API:
 /// - `struct Cycle: Codable, Equatable { key: String; end: Double; spend: Double; lastObservedAt: Double }`
 ///   (`end`/`lastObservedAt` are epoch ms)
-/// - `struct CycleHistory: Codable, Equatable { current: Cycle?; previous: Cycle? }`
+/// - `struct CycleHistory: Codable, Equatable { current: Cycle?; previous: Cycle?; older: Cycle? }`
+///   (`older` is the cycle before `previous`, kept on the same rule; a cache
+///   without it reads as nil)
 ///   - `static let empty`
 ///   - `func normalized() -> CycleHistory`        drops invalid cycles; no current ⇒ empty;
-///                                                 a previous ending after current is dropped
+///                                                 a previous ending after current is dropped,
+///                                                 an older not ending before previous too
+///   - `func completedCycles() -> [Cycle]`         previous, then older (what exists)
 ///   - `func advanced(with money: Money?, now: Double) -> CycleHistory`
 ///                                                 feed it OpenRouter's money after every fetch
 public struct Cycle: Codable, Equatable, Sendable {
@@ -41,10 +45,13 @@ public struct Cycle: Codable, Equatable, Sendable {
 public struct CycleHistory: Codable, Equatable, Sendable {
     public var current: Cycle?
     public var previous: Cycle?
+    /// The completed cycle before `previous` (OpenRouter account-wide two-month average).
+    public var older: Cycle?
 
-    public init(current: Cycle? = nil, previous: Cycle? = nil) {
+    public init(current: Cycle? = nil, previous: Cycle? = nil, older: Cycle? = nil) {
         self.current = current
         self.previous = previous
+        self.older = older
     }
 
     public static let empty = CycleHistory()
@@ -53,7 +60,14 @@ public struct CycleHistory: Codable, Equatable, Sendable {
         guard let current = current?.normalized() else { return .empty }
         var previous = self.previous?.normalized()
         if let p = previous, p.end > current.end { previous = nil }
-        return CycleHistory(current: current, previous: previous)
+        var older = previous == nil ? nil : self.older?.normalized()
+        if let o = older, let p = previous, o.end >= p.end { older = nil }
+        return CycleHistory(current: current, previous: previous, older: older)
+    }
+
+    public func completedCycles() -> [Cycle] {
+        let h = normalized()
+        return [h.previous, h.older].compactMap { $0 }
     }
 
     public func advanced(with money: Money?, now: Double) -> CycleHistory {
@@ -68,11 +82,14 @@ public struct CycleHistory: Codable, Equatable, Sendable {
         if current.end == next.end {
             return CycleHistory(current: Cycle(key: next.key, end: next.end,
                                                spend: max(current.spend, next.spend), lastObservedAt: now),
-                                previous: h.previous)
+                                previous: h.previous, older: h.older)
         }
         if next.end > current.end {
             let observedNearEnd = current.lastObservedAt >= current.end - 6 * 3_600_000
-            return CycleHistory(current: next, previous: observedNearEnd ? current : nil)
+            // The chain moves down one; a missed end breaks it (no misleading baseline).
+            return observedNearEnd
+                ? CycleHistory(current: next, previous: current, older: h.previous)
+                : CycleHistory(current: next, previous: nil, older: nil)
         }
         return h
     }

@@ -230,26 +230,64 @@ enum LogicTests {
         idle.money?.spend = 0
         t.equal(Meters.barDollarsText(idle), "", "nothing to show: mark only")
 
-        // With a previous month observed the panel's money window is a meter; the bar still shows credits.
+        // One observed month: a meter against it ("avg (1 month)"); the bar adds that meter.
         let hist = CycleHistory(current: Cycle(key: "c", end: cycleEnd, spend: 49.93, lastObservedAt: now),
                                 previous: Cycle(key: "p", end: cycleEnd - 30 * day, spend: 99.86, lastObservedAt: cycleEnd - 30 * day)).normalized()
         let metered = Meters.windowsFor(p, history: hist)
         t.equal(metered[0].mode, .meter)
         t.equal(metered[0].percent, 50)
-        t.equal(Summary.windowCaption(metered[0], now: now), "$49.93 of $99.86 \u{00B7} Resets in 15d 12h")
-        t.equal(Meters.barMeters(p, history: hist).count, 0)
+        t.equal(Summary.windowCaption(metered[0], now: now), "$49.93 of $99.86 avg (1 month) \u{00B7} Resets in 15d 12h")
+        t.equal(Meters.barMeters(p, history: hist).map(\.key), ["cycle"], "credits figure + one meter")
         t.equal(Meters.barDollarsText(p, history: hist), "$20.81")
+        t.equal(Summary.accountWideBarText(p, history: hist), "$20.81 \u{00B7} 50%")
+        t.equal(Summary.accountWideBarText(p), "$20.81", "no baseline: dollars only")
         var over = p
         over.money?.spend = 120
-        t.equal(Meters.windowsFor(over, history: hist)[0].color, .yellow, "over the previous month")
-        t.equal(Meters.providerColor(over, history: hist), .warning, "a key at 80% is not masked by the dollars window")
+        let overW = Meters.windowsFor(over, history: hist)[0]
+        t.equal(overW.color, .yellow, "over the average")
+        t.equal(overW.mode, .meter, "still a meter account-wide")
+        t.near(overW.percent, 120.17, 0.01, "honest percent above 100")
+        t.equal(Summary.windowValueText(overW), "120.2%")
+        t.equal(Summary.windowCaption(overW, now: now), "$120.00 of $99.86 avg (1 month) \u{00B7} Resets in 15d 12h \u{00B7} over the previous month")
+        t.equal(Meters.providerColor(over, history: hist), .warning, "a key at 80% outranks yellow")
         t.equal(Meters.barDollarsColor(over, history: hist), .normal, "the bar figure stays normal")
         var hot = over
         hot.limits[1].percent = 95
-        t.equal(Meters.providerColor(hot, history: hist), .critical, "over the previous month + a key at 95%")
+        t.equal(Meters.providerColor(hot, history: hist), .critical, "over the average + a key at 95%")
         var calmOver = over
         calmOver.limits = [limits[0]]
         t.equal(Meters.providerColor(calmOver, history: hist), .yellow, "yellow when nothing else is elevated")
+
+        // Two observed months: averaged, labelled by month.
+        let two = CycleHistory(current: Cycle(key: "c", end: cycleEnd, spend: 49.93, lastObservedAt: now),
+                               previous: Cycle(key: "p", end: utc(2026, 11, 1), spend: 60, lastObservedAt: utc(2026, 11, 1)),
+                               older: Cycle(key: "o", end: utc(2026, 10, 1), spend: 62.4, lastObservedAt: utc(2026, 10, 1))).normalized()
+        let twoW = Meters.windowsFor(p, history: two)[0]
+        t.near(twoW.effectiveLimit ?? -1, 61.2, 0.0001, "(60 + 62.40) / 2")
+        t.equal(Summary.windowCaption(twoW, now: now), "$49.93 of $61.20 avg (Sep\u{2013}Oct) \u{00B7} Resets in 15d 12h")
+        var overTwo = p
+        overTwo.money?.spend = 70
+        t.check(Summary.windowCaption(Meters.windowsFor(overTwo, history: two)[0], now: now).hasSuffix("over the 2-month average"), "2-month over note")
+
+        // Analytics baseline wins over history, only for its own month.
+        var withAnalytics = p
+        withAnalytics.money?.baseline = MonthlyBaseline(month: "2026-11", average: 80, months: 2, label: "Sep\u{2013}Oct")
+        let aW = Meters.windowsFor(withAnalytics, history: hist)[0]
+        t.near(aW.percent, 62.41, 0.01)
+        t.equal(Summary.windowCaption(aW, now: now), "$49.93 of $80.00 avg (Sep\u{2013}Oct) \u{00B7} Resets in 15d 12h")
+        var stale = withAnalytics
+        stale.money?.baseline?.month = "2026-10"
+        t.equal(Meters.windowsFor(stale)[0].mode, .dollars, "last month's analytics figure is not reused")
+        var zeroBase = withAnalytics
+        zeroBase.money?.baseline?.average = 0
+        t.equal(Meters.windowsFor(zeroBase)[0].mode, .dollars, "zero baseline → dollars")
+        t.equal(Meters.barMeters(zeroBase).count, 0)
+
+        // Per-key (inference) mode: previous-cycle behaviour unchanged, even with an older cycle.
+        let perKeyMoney = Money(label: "key", limit: nil, spend: 8, resetInterval: "monthly", resetsAt: cycleEnd)
+        let perKeyW = Meters.openrouterWindow(provider(.openrouter, money: perKeyMoney), history: two)!
+        t.equal(perKeyW.effectiveLimit, 60, "per-key uses the previous cycle only")
+        t.equal(perKeyW.baselineText, "")
 
         // The cycle history keeps working for the account-wide money.
         let advanced = CycleHistory.empty.advanced(with: money, now: now)
@@ -433,7 +471,7 @@ enum LogicTests {
         let slim = UsageCache.slim(dirty)
         t.equal(slim.tier, "\u{2039}b\u{203A}Max\u{2039}/b\u{203A}")
         t.equal(slim.limits.count, 9)
-        t.equal(UsageCache.slim(provider(.claude, limits: (0..<20).map { limit("k\($0)", 1) })).limits.count, 12)
+        t.equal(UsageCache.slim(provider(.claude, limits: (0..<20).map { limit("k\($0)", 1) })).limits.count, 16, "credits + 12 OpenRouter keys fit")
         t.check(slim.money?.limit == nil && slim.money?.spend == 0, "money numbers sanitised")
         t.check(!UsageCache(providers: [dirty]).serialize().isEmpty, "non-finite numbers still serialise")
 

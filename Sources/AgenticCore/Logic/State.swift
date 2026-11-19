@@ -74,6 +74,10 @@ public struct MeterWindow: Equatable, Sendable {
     public var keyLabel: String
     /// Dollars-mode value rows: a word after the figure ("left", "this month").
     public var valueSuffix: String
+    /// OpenRouter account-wide: what the meter is measured against, "avg (Sep–Oct)".
+    public var baselineText: String
+    /// Caption when `over`.
+    public var overNote: String
 
     public init(key: String, label: String, short: String, detail: String, percent: Double,
                 resetsAt: Double = 0, stale: Bool = false, limited: Bool = false,
@@ -81,13 +85,15 @@ public struct MeterWindow: Equatable, Sendable {
                 meterVisible: Bool = true, spend: Double? = nil, limit: Double? = nil,
                 effectiveLimit: Double? = nil, over: Bool = false, previous: Cycle? = nil,
                 credits: Double? = nil, totalCredits: Double? = nil, resetInterval: String = "",
-                keyLabel: String = "", valueSuffix: String = "") {
+                keyLabel: String = "", valueSuffix: String = "", baselineText: String = "",
+                overNote: String = "over the previous cycle") {
         self.key = key; self.label = label; self.short = short; self.detail = detail
         self.percent = percent; self.resetsAt = resetsAt; self.stale = stale; self.limited = limited
         self.state = state; self.color = color; self.mode = mode; self.meterVisible = meterVisible
         self.spend = spend; self.limit = limit; self.effectiveLimit = effectiveLimit; self.over = over
         self.previous = previous; self.credits = credits; self.totalCredits = totalCredits
         self.resetInterval = resetInterval; self.keyLabel = keyLabel; self.valueSuffix = valueSuffix
+        self.baselineText = baselineText; self.overNote = overNote
     }
 }
 
@@ -119,6 +125,9 @@ public enum Meters {
     public static func openrouterWindow(_ provider: Provider?, history: CycleHistory = .empty,
                                         warn: Double = defaultWarn, critical: Double = defaultCritical) -> MeterWindow? {
         guard let money = provider?.money else { return nil }
+        if money.label == Money.accountWideLabel {
+            return accountWindow(money, history: history, warn: warn, critical: critical)
+        }
         let previous = history.normalized().previous
         let spend = money.spend.isFinite ? max(0, money.spend) : 0
         let keyLimit: Double? = {
@@ -149,6 +158,61 @@ public enum Meters {
             meterVisible: meterVisible, spend: spend, limit: keyLimit, effectiveLimit: effectiveLimit,
             over: over, previous: previous, credits: money.credits, totalCredits: money.totalCredits,
             resetInterval: money.resetInterval, keyLabel: money.label)
+    }
+
+    /// Account-wide average month, from analytics (`money.baseline`, this month
+    /// only) or else the observed history: previous and older cycle averaged,
+    /// or the previous alone. nil when there is no positive baseline.
+    public static func accountBaseline(_ money: Money, history: CycleHistory = .empty, now: Date? = nil)
+        -> (average: Double, months: Int, text: String)? {
+        // Analytics' figure only for the month it was read for (a merge can carry
+        // last month's money past the 1st).
+        let moneyMonth = money.resetsAt > 0
+            ? OpenRouterCollector.monthKey(Date(timeIntervalSince1970: (money.resetsAt - 1) / 1000)) : nil
+        if let b = money.baseline, b.average.isFinite, b.average > 0, moneyMonth == nil || moneyMonth == b.month {
+            return (b.average, max(1, b.months), "avg (" + b.label + ")")
+        }
+        let cycles = history.completedCycles()
+        guard !cycles.isEmpty else { return nil }
+        let average = cycles.reduce(0) { $0 + $1.spend } / Double(cycles.count)
+        guard average.isFinite, average > 0 else { return nil }
+        if cycles.count == 1 { return (average, 1, "avg (1 month)") }
+        return (average, 2, "avg (" + monthLabel(cycles[1]) + "\u{2013}" + monthLabel(cycles[0]) + ")")
+    }
+
+    /// "Oct" for the cycle that resets on 1 November.
+    static func monthLabel(_ cycle: Cycle) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let month = cal.component(.month, from: Date(timeIntervalSince1970: (cycle.end - 1) / 1000))
+        return OpenRouterCollector.monthNames[(month + 11) % 12]
+    }
+
+    /// "All keys · this month": a meter of this month's spend against the
+    /// two-month average when there is one (the percent stays honest above 100;
+    /// over the average is yellow), else dollars.
+    static func accountWindow(_ money: Money, history: CycleHistory, warn: Double, critical: Double) -> MeterWindow {
+        let spend = money.spend.isFinite ? max(0, money.spend) : 0
+        let base = accountBaseline(money, history: history)
+        var percent: Double = 0
+        var over = false
+        var color: MeterState = .normal
+        if let base {
+            percent = min(9999, spend / base.average * 100)
+            over = spend > base.average
+            color = over ? .yellow : stateOf(percent, warn: warn, critical: critical)
+        }
+        return MeterWindow(
+            key: "cycle", label: "This cycle", short: "$",
+            detail: Money.accountWideLabel + " \u{00B7} " + periodPhrase(money.resetInterval),
+            percent: percent, resetsAt: money.resetsAt, stale: false, limited: false,
+            state: color == .yellow ? .normal : color, color: color,
+            mode: base == nil ? .dollars : .meter, meterVisible: base != nil,
+            spend: spend, limit: nil, effectiveLimit: base?.average, over: over,
+            previous: history.normalized().previous, credits: money.credits, totalCredits: money.totalCredits,
+            resetInterval: money.resetInterval, keyLabel: money.label,
+            baselineText: base?.text ?? "",
+            overNote: base?.months == 1 ? "over the previous month" : "over the 2-month average")
     }
 
     /// `keyRows`: OpenRouter account-wide only — how many key rows to keep
@@ -217,8 +281,11 @@ public enum Meters {
     /// `meterVisible` (zero spend or no baseline draws the mark only).
     public static func barMeters(_ provider: Provider?, history: CycleHistory = .empty,
                                  warn: Double = defaultWarn, critical: Double = defaultCritical) -> [MeterWindow] {
-        // Account-wide OpenRouter draws its credits figure only, never meters.
-        if isAccountWide(provider) { return [] }
+        // Account-wide OpenRouter: its credits figure plus at most the month's meter.
+        if isAccountWide(provider) {
+            return windowsFor(provider, history: history, warn: warn, critical: critical, keyRows: 0)
+                .filter { $0.key == "cycle" && $0.mode == .meter }
+        }
         return barWindows(provider, history: history, warn: warn, critical: critical).filter {
             $0.mode == .meter && (provider?.id != .openrouter || $0.meterVisible)
         }
@@ -251,12 +318,15 @@ public enum Meters {
                                      warn: Double = defaultWarn, critical: Double = defaultCritical) -> MeterState {
         let windows = windowsFor(provider, history: history, warn: warn, critical: critical)
         if windows.contains(where: { $0.limited }) { return .critical }
-        // Rank meters first, so OpenRouter's dollars window (percent 100 when over the
-        // previous cycle) never masks a warning or critical row; yellow only when
-        // nothing else is elevated.
-        let top = summaryWindow(windows)?.color ?? .normal
-        if top == .normal, windows.contains(where: { $0.color == .yellow }) { return .yellow }
-        return top
+        // The most severe colour among the live windows: critical, warning, then
+        // OpenRouter's yellow (over its baseline, whatever its percent), then normal.
+        // So a yellow 120% never masks a key at 95%.
+        let live = windows.filter { !$0.stale }
+        let pool = live.isEmpty ? windows : live
+        func rank(_ s: MeterState) -> Int {
+            switch s { case .critical: return 3; case .warning: return 2; case .yellow: return 1; case .normal: return 0 }
+        }
+        return pool.map(\.color).max { rank($0) < rank($1) } ?? .normal
     }
 
     /// The window a provider's headline figure comes from: the highest meter-mode

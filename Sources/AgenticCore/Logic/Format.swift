@@ -30,9 +30,10 @@ public enum Format {
         return String(x)
     }
 
-    public static func percentText(_ value: Double?) -> String {
+    /// `upTo`: the cap (100; OpenRouter's account-wide month may honestly exceed it).
+    public static func percentText(_ value: Double?, upTo cap: Double = 100) -> String {
         guard let n = value, n.isFinite else { return dash }
-        let rounded = jsRound(Sanitize.clamp(n, 0, 100) * 10) / 10
+        let rounded = jsRound(Sanitize.clamp(n, 0, cap) * 10) / 10
         let body = rounded.truncatingRemainder(dividingBy: 1) == 0
             ? integerText(rounded)
             : String(format: "%.1f", rounded)

@@ -17,7 +17,7 @@ import Foundation
 ///         one by one; timestamps > 5 min in the future become 0; everything re-sanitised
 ///   - `func write(to url: URL) throws`    parent dir created/forced to 0700, atomic write, file 0600
 ///   - `static func read(from url: URL, now: Double) -> UsageCache?`
-///   - `static func slim(_ provider: Provider) -> Provider`   sanitised copy (≤ 12 limits/budgets,
+///   - `static func slim(_ provider: Provider) -> Provider`   sanitised copy (≤ 16 limits, 12 budgets,
 ///         bounded display-safe strings, finite numbers) — what the cache stores
 ///   - `static func defaultURL(home:) -> URL`   ~/Library/Caches/com.crueber.agentic-apple/usage.json
 public struct UsageCache: Equatable, Sendable {
@@ -58,7 +58,7 @@ public struct UsageCache: Equatable, Sendable {
         p.hint = Sanitize.plain(provider.hint, max: 300)
         p.error = Sanitize.plain(provider.error, max: 300)
         p.source = Sanitize.plain(provider.source, max: 40)
-        p.limits = provider.limits.prefix(12).compactMap { l in
+        p.limits = provider.limits.prefix(16).compactMap { l in
             let key = Sanitize.plain(l.key, max: 80)
             if key.isEmpty { return nil }
             let label = Sanitize.plain(l.label, max: 100)
@@ -76,7 +76,13 @@ public struct UsageCache: Equatable, Sendable {
                             credits: m.credits.flatMap { $0.isFinite ? $0 : nil },
                             totalCredits: m.totalCredits.flatMap { $0.isFinite ? $0 : nil },
                             resetInterval: String(m.resetInterval.prefix(24)),
-                            resetsAt: max(0, finite(m.resetsAt)))
+                            resetsAt: max(0, finite(m.resetsAt)),
+                            baseline: m.baseline.flatMap { b in
+                                b.average.isFinite && b.average > 0
+                                    ? MonthlyBaseline(month: Sanitize.plain(b.month, max: 7), average: b.average,
+                                                      months: min(2, max(1, b.months)), label: Sanitize.plain(b.label, max: 16))
+                                    : nil
+                            })
         }
         p.budgets = provider.budgets.prefix(12).map { b in
             Budget(label: Sanitize.plain(b.label, max: 80), spend: max(0, finite(b.spend)),

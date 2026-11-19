@@ -48,6 +48,18 @@ struct BarChip: View {
         HStack(spacing: BarMetrics.chipInnerSpacing) {
             ProviderMark(provider.id, size: BarMetrics.markSize)
             switch state.barStyle {
+            case .bars where Meters.isAccountWide(provider):
+                // Account-wide OpenRouter: credits left, then this month's meter (when it has a baseline).
+                let dollars = Meters.barDollarsText(provider, history: state.history, warn: state.warn, critical: state.critical)
+                if !dollars.isEmpty {
+                    Text(dollars)
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .foregroundStyle(state.palette.color(.normal, scheme))
+                }
+                ForEach(Array(Meters.barMeters(provider, history: state.history, warn: state.warn,
+                                               critical: state.critical).enumerated()), id: \.offset) { _, w in
+                    BarMeter(window: w, palette: state.palette)
+                }
             case .bars:
                 let meters = Meters.barMeters(provider, history: state.history, warn: state.warn, critical: state.critical)
                 if !meters.isEmpty {
@@ -65,8 +77,8 @@ struct BarChip: View {
                         .foregroundStyle(state.palette.color(color, scheme))
                 }
             case .text where Meters.isAccountWide(provider):
-                // Account-wide OpenRouter: the credits figure only, as in the meters style.
-                Text(Meters.barDollarsText(provider, history: state.history, warn: state.warn, critical: state.critical))
+                // Account-wide OpenRouter: credits left, and this month's percent of the average.
+                Text(Summary.accountWideBarText(provider, history: state.history, warn: state.warn, critical: state.critical))
                     .font(.system(size: 11, weight: .medium).monospacedDigit())
                     .lineLimit(1)
             case .text:
