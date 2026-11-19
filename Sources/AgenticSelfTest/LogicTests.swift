@@ -230,13 +230,13 @@ enum LogicTests {
         idle.money?.spend = 0
         t.equal(Meters.barDollarsText(idle), "", "nothing to show: mark only")
 
-        // One observed month: a meter against it ("avg (1 month)"); the bar adds that meter.
+        // One observed month of the default two: a meter against it ("avg (1 of 2 months)"); the bar adds that meter.
         let hist = CycleHistory(current: Cycle(key: "c", end: cycleEnd, spend: 49.93, lastObservedAt: now),
                                 previous: Cycle(key: "p", end: cycleEnd - 30 * day, spend: 99.86, lastObservedAt: cycleEnd - 30 * day)).normalized()
         let metered = Meters.windowsFor(p, history: hist)
         t.equal(metered[0].mode, .meter)
         t.equal(metered[0].percent, 50)
-        t.equal(Summary.windowCaption(metered[0], now: now), "$49.93 of $99.86 avg (1 month) \u{00B7} Resets in 15d 12h")
+        t.equal(Summary.windowCaption(metered[0], now: now), "$49.93 of $99.86 avg (1 of 2 months) \u{00B7} Resets in 15d 12h")
         t.equal(Meters.barMeters(p, history: hist).map(\.key), ["cycle"], "credits figure + one meter")
         t.equal(Meters.barDollarsText(p, history: hist), "$20.81")
         t.equal(Summary.accountWideBarText(p, history: hist), "$20.81 \u{00B7} 50%")
@@ -248,7 +248,7 @@ enum LogicTests {
         t.equal(overW.mode, .meter, "still a meter account-wide")
         t.near(overW.percent, 120.17, 0.01, "honest percent above 100")
         t.equal(Summary.windowValueText(overW), "120.2%")
-        t.equal(Summary.windowCaption(overW, now: now), "$120.00 of $99.86 avg (1 month) \u{00B7} Resets in 15d 12h \u{00B7} over the previous month")
+        t.equal(Summary.windowCaption(overW, now: now), "$120.00 of $99.86 avg (1 of 2 months) \u{00B7} Resets in 15d 12h \u{00B7} over last month")
         t.equal(Meters.providerColor(over, history: hist), .warning, "a key at 80% outranks yellow")
         t.equal(Meters.barDollarsColor(over, history: hist), .normal, "the bar figure stays normal")
         var hot = over

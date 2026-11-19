@@ -91,10 +91,13 @@ and the cycle history in `Logic/State.swift`; with an inference key its
 `limits` stay empty. With a management key, `money.label` is
 `Money.accountWideLabel` ("All keys", Σ `usage_monthly`, no limit) and
 `money.baseline` (`MonthlyBaseline`, from `/api/v1/analytics/meta` +
-`POST /api/v1/analytics/query`, at most once a month — `AnalyticsMemo` in the
-run, `CollectorContext.openrouterBaseline` from the cache across launches) is
-the previous two months' average; without it `Meters.accountBaseline` averages
-`CycleHistory.previous`/`older`. The month window is a meter against that
+`POST /api/v1/analytics/query`, at most once per (month, N) — `AnalyticsMemo`
+in the run, `CollectorContext.openrouterBaseline` from the cache across
+launches) is the previous N months' average, N =
+`CollectorContext.openrouterAverageMonths` (the setting, recorded as
+`money.averageMonths`; 0 = off: no meter, no analytics). Without it
+`Meters.accountBaseline` averages the most recent min(N, known) of
+`CycleHistory.completed` (up to 12; old `previous`/`older` caches migrate). The month window is a meter against that
 baseline (percent may exceed 100; yellow when over), the bar draws credits
 left plus that one meter. `HTTPClient.post` exists only for analytics.
 `limits` holds `credits` (a value row: `Limit.amount` = credits left), then
@@ -162,9 +165,10 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
    percentages carry `MeterState` colours. Colour rules live in
    `Meters` (`Logic/State.swift`): critical ≥ `criticalPercent` or `limited`,
    warning ≥ `warnPercent`, OpenRouter yellow when over the previous cycle.
-7. **OpenRouter history** keeps one current and up to two completed cycles
-   (`previous`, `older`); a cycle is kept only when observed within six hours
-   of its end. The per-key view uses `previous` only.
+7. **OpenRouter history** keeps one current and up to 12 completed cycles
+   (`completed`, most recent first; `previous` = the first); a cycle is kept
+   only when observed within six hours of its end. The per-key view uses
+   `previous` only and ignores `openrouterAverageMonths`.
 8. **Order and visibility.** `providerOrder` is a comma-separated id string;
    missing ids follow in `ProviderID.defaultOrder`. `DisplayState.panelProviders`
    is every available agent in that order (so a hidden one can be switched back
@@ -174,8 +178,11 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
    `providerOrder`, `refreshIntervalSec`, `warnPercent`, `criticalPercent`,
    `warningColor`, `criticalColor`, `showActivity`, `opencodeCommand`,
    `codexCommand`, `grokHome`, `botHome`, `authFile`). Do not rename them.
-   `autoUpdate` (bool, default true) and `openrouterKeyRows` (int 0–12,
-   default 3) are this app's own additions.
+   `autoUpdate` (bool, default true), `openrouterKeyRows` (int 0–12,
+   default 3) and `openrouterAverageMonths` (int 0–12, default 2; 0 = usage
+   meter off — the only source of truth, the Settings toggle is `> 0`) are
+   this app's own additions. Changing `openrouterAverageMonths` triggers a
+   refresh.
    `launchAtLogin` mirrors `SMAppService` and records the user's choice:
    `LoginItem.ensureOnLaunch` turns it on at an installed copy's first launch
    and re-registers when the setting is on but macOS lost the item; never from

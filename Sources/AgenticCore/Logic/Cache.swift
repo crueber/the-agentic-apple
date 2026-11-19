@@ -80,9 +80,10 @@ public struct UsageCache: Equatable, Sendable {
                             baseline: m.baseline.flatMap { b in
                                 b.average.isFinite && b.average > 0
                                     ? MonthlyBaseline(month: Sanitize.plain(b.month, max: 7), average: b.average,
-                                                      months: min(2, max(1, b.months)), label: Sanitize.plain(b.label, max: 16))
+                                                      months: min(12, max(1, b.months)), label: Sanitize.plain(b.label, max: 16))
                                     : nil
-                            })
+                            },
+                            averageMonths: m.averageMonths)
         }
         p.budgets = provider.budgets.prefix(12).map { b in
             Budget(label: Sanitize.plain(b.label, max: 80), spend: max(0, finite(b.spend)),

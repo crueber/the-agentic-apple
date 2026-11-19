@@ -182,7 +182,8 @@ The app makes requests of its own to three destinations:
   - `GET https://openrouter.ai/api/v1/credits` (optional)
   - with a management key instead: `GET https://openrouter.ai/api/v1/keys?offset=N`
     (at most 10 pages per refresh, and once when you click **Save**) and
-    `GET https://openrouter.ai/api/v1/credits`; for the two-month baseline, at
+    `GET https://openrouter.ai/api/v1/credits`; for the N-month baseline (none
+    when the usage meter is off), at
     most once per month and launch (the result is cached):
     `GET https://openrouter.ai/api/v1/analytics/meta` and
     `POST https://openrouter.ai/api/v1/analytics/query` with

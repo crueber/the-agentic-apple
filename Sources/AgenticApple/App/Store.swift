@@ -71,6 +71,12 @@ final class Store: ObservableObject {
         settings.$refreshIntervalSec.removeDuplicates().dropFirst()
             .sink { [weak self] _ in Task { @MainActor in self?.scheduleNextPoll() } }
             .store(in: &cancellables)
+        // The usage meter's months change what OpenRouter is asked: fetch again
+        // (debounced, so stepping 2 → 6 is one refresh).
+        settings.$openrouterAverageMonths.removeDuplicates().dropFirst()
+            .debounce(for: .seconds(1.5), scheduler: RunLoop.main)
+            .sink { [weak self] _ in Task { @MainActor in self?.refreshAfterCredentialChange() } }
+            .store(in: &cancellables)
     }
 
     var nowMs: Double { Date().timeIntervalSince1970 * 1000 }

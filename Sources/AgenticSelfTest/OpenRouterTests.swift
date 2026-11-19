@@ -281,5 +281,6 @@ enum OpenRouterTests {
         await resetDates(t)
         keychain(t)
         await analytics(t)
+        await averageMonths(t)
     }
 }

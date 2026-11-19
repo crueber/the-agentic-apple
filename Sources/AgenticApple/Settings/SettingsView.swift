@@ -331,6 +331,8 @@ private struct OpenRouterKeySection: View {
     @State private var draft = ""
     @State private var saved = false
     @State private var needsResave = false
+    /// The months to restore when the usage meter is switched back on.
+    @State private var lastAverageMonths = AppSettings.defaultAverageMonths
     @State private var message = ""
     @State private var messageIsError = false
     @State private var working = false
@@ -351,6 +353,25 @@ private struct OpenRouterKeySection: View {
                         .disabled(working || !saved)
                 }
             }
+            Toggle("Usage meter", isOn: Binding(
+                get: { settings.openrouterAverageMonths > 0 },
+                set: { on in
+                    if on { settings.openrouterAverageMonths = max(1, lastAverageMonths) }
+                    else {
+                        lastAverageMonths = max(1, settings.openrouterAverageMonths)
+                        settings.openrouterAverageMonths = 0
+                    }
+                }))
+            Stepper(value: Binding(
+                get: { settings.openrouterAverageMonths > 0 ? settings.openrouterAverageMonths : lastAverageMonths },
+                set: { settings.openrouterAverageMonths = $0; lastAverageMonths = $0 }), in: 1...12) {
+                LabeledContent(settings.openrouterAverageMonths == 1 || (settings.openrouterAverageMonths == 0 && lastAverageMonths == 1)
+                               ? "Compare with last month"
+                               : "Average of the last \(settings.openrouterAverageMonths > 0 ? settings.openrouterAverageMonths : lastAverageMonths) months") {
+                    Text("this month's spend, as a meter").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .disabled(settings.openrouterAverageMonths == 0)
             Stepper(value: $settings.openrouterKeyRows, in: 0...12) {
                 LabeledContent("Show the top \(settings.openrouterKeyRows) keys") {
                     Text(settings.openrouterKeyRows == 0 ? "none" : "by spend this month")
@@ -380,7 +401,10 @@ private struct OpenRouterKeySection: View {
                 }
             }
         }
-        .task { await refreshStatus() }
+        .task {
+            if settings.openrouterAverageMonths > 0 { lastAverageMonths = settings.openrouterAverageMonths }
+            await refreshStatus()
+        }
     }
 
     /// `security find-generic-password` without `-w` (no secret, no prompt), off the main thread.

@@ -139,6 +139,7 @@ extension OpenRouterCollector {
         limits += keyLimits(enabled, now: context.now)
         // Optional: never an error, the Logic layer falls back to observed history.
         money.baseline = await accountBaseline(key, context, memo: analytics)
+        money.averageMonths = min(maxAverageMonths, max(0, context.openrouterAverageMonths))
 
         provider.money = money
         provider.limits = limits

@@ -1,7 +1,8 @@
 import Foundation
 
-/// OpenRouter account-wide: the average monthly spend of the previous two
-/// calendar months (UTC), the baseline for the "All keys · this month" meter.
+/// OpenRouter account-wide: the average monthly spend of the previous N
+/// calendar months (UTC; N = `openrouterAverageMonths`, 1–12, 0 = no meter and
+/// no analytics), the baseline for the "All keys · this month" meter.
 ///
 /// Endpoints (management key, `Authorization` header only):
 /// - `GET  /api/v1/analytics/meta` — pick the cost metric: `display_format`
@@ -12,8 +13,8 @@ import Foundation
 ///   (`queryBody`). Rows are parsed defensively (`parseTotal`): anything
 ///   unexpected means "no baseline", never an error shown to the user.
 ///
-/// Asked at most once per month per run (`AnalyticsMemo`), and not at all when
-/// the cached provider already has this month's baseline
+/// Asked at most once per (month, N) per run (`AnalyticsMemo`), and not at all
+/// when the cached provider already has this month's baseline for the same N
 /// (`CollectorContext.openrouterBaseline`). Without one the Logic layer falls
 /// back to the observed cycle history.
 public final class AnalyticsMemo: @unchecked Sendable {
@@ -52,20 +53,26 @@ extension OpenRouterCollector {
         return String(format: "%04d-%02d", c.year ?? 0, c.month ?? 0)
     }
 
-    /// The 1st of `date`'s month and of the month two before it, 00:00 UTC.
-    public static func baselineRange(_ date: Date) -> (start: Date, end: Date)? {
+    public static let maxAverageMonths = 12
+    public static let defaultAverageMonths = 2
+
+    /// The 1st of `date`'s month and of the month `months` before it, 00:00 UTC.
+    public static func baselineRange(_ date: Date, months: Int = 2) -> (start: Date, end: Date)? {
         let cal = utc
-        guard let end = cal.date(from: cal.dateComponents([.year, .month], from: date)),
-              let start = cal.date(byAdding: .month, value: -2, to: end) else { return nil }
+        guard (1...maxAverageMonths).contains(months),
+              let end = cal.date(from: cal.dateComponents([.year, .month], from: date)),
+              let start = cal.date(byAdding: .month, value: -months, to: end) else { return nil }
         return (start, end)
     }
 
-    /// "Sep–Oct" for a range starting in September.
-    public static func rangeLabel(_ start: Date) -> String {
+    /// "Oct" for one month, "Sep–Oct" or "Aug–Oct" for a range starting at `start`.
+    public static func rangeLabel(_ start: Date, months: Int = 2) -> String {
         let cal = utc
         let first = cal.component(.month, from: start)
-        let second = cal.component(.month, from: cal.date(byAdding: .month, value: 1, to: start) ?? start)
-        return monthNames[(first + 11) % 12] + "\u{2013}" + monthNames[(second + 11) % 12]
+        let lastDate = cal.date(byAdding: .month, value: max(0, months - 1), to: start) ?? start
+        let last = cal.component(.month, from: lastDate)
+        let a = monthNames[(first + 11) % 12], b = monthNames[(last + 11) % 12]
+        return months <= 1 ? a : a + "\u{2013}" + b
     }
 
     static func isoSeconds(_ date: Date) -> String {
@@ -104,28 +111,28 @@ extension OpenRouterCollector {
         return best?.name
     }
 
-    /// The exact request body for the two months before `now`'s month.
-    public static func queryBody(metric: String, now: Date) -> String? {
-        guard isPlainMetricName(metric), let range = baselineRange(now) else { return nil }
+    /// The exact request body for the `months` full months before `now`'s month.
+    public static func queryBody(metric: String, now: Date, months: Int = 2) -> String? {
+        guard isPlainMetricName(metric), let range = baselineRange(now, months: months) else { return nil }
         return #"{"metrics":[""# + metric + #""],"granularity":"month","time_range":{"start":""#
             + isoSeconds(range.start) + #"","end":""# + isoSeconds(range.end) + #""}}"#
     }
 
-    /// The two months' total spend, or nil when the answer is not clearly that.
-    /// - `data.data` rows, at most two; each must carry the metric as a number ≥ 0.
+    /// The `months` months' total spend, or nil when the answer is not clearly that.
+    /// - `data.data` rows, at most `months`; each must carry the metric as a number ≥ 0.
     /// - A row's time bucket (any string field that reads as a date) must fall in
     ///   the range, one row per month.
-    /// - Fewer than two rows count the missing months as 0 only when the answer
+    /// - Fewer than `months` rows count the missing months as 0 only when the answer
     ///   says it is complete (`metadata.row_count` equals the rows, `truncated`
     ///   false) and every row has a bucket.
     /// - `truncated` true → nil.
-    public static func parseTotal(_ doc: [String: Any], metric: String, start: Date, end: Date) -> Double? {
-        guard let data = doc["data"] as? [String: Any], let rows = data["data"] as? [Any], rows.count <= 2 else { return nil }
+    public static func parseTotal(_ doc: [String: Any], metric: String, start: Date, end: Date, months: Int = 2) -> Double? {
+        guard let data = doc["data"] as? [String: Any], let rows = data["data"] as? [Any], rows.count <= months else { return nil }
         let meta = data["metadata"] as? [String: Any]
         if (meta?["truncated"] as? Bool) == true { return nil }
         let startMs = start.timeIntervalSince1970 * 1000, endMs = end.timeIntervalSince1970 * 1000
         var total = 0.0
-        var months = Set<String>()
+        var seenMonths = Set<String>()
         var allBucketed = true
         for row in rows {
             guard let row = row as? [String: Any], let value = Sanitize.number(row[metric]), value >= 0 else { return nil }
@@ -136,12 +143,12 @@ extension OpenRouterCollector {
             }
             if let bucket {
                 guard bucket >= startMs, bucket < endMs else { return nil }
-                guard months.insert(monthKey(Date(timeIntervalSince1970: bucket / 1000))).inserted else { return nil }
+                guard seenMonths.insert(monthKey(Date(timeIntervalSince1970: bucket / 1000))).inserted else { return nil }
             } else {
                 allBucketed = false
             }
         }
-        if rows.count == 2 { return total }
+        if rows.count == months { return total }
         let complete = (meta?["truncated"] as? Bool) == false
             && Sanitize.number(meta?["row_count"]).map { Int($0) == rows.count } == true
         return complete && allBucketed ? total : nil
@@ -163,18 +170,25 @@ extension OpenRouterCollector {
 
     /// The baseline for `context.now`'s month: the cached one, this run's earlier
     /// attempt, or one meta + query round trip. nil when unavailable.
+    /// Keyed by (month, N): changing N asks again, once.
     static func accountBaseline(_ key: String, _ context: CollectorContext, memo: AnalyticsMemo) async -> MonthlyBaseline? {
+        let months = context.openrouterAverageMonths
+        guard (1...maxAverageMonths).contains(months) else { return nil }   // 0 = usage meter off: no analytics
         let month = monthKey(context.now)
-        if let cached = context.openrouterBaseline, cached.month == month, cached.average > 0 { return cached }
-        if let earlier = memo.attempt(for: month) { return earlier }
-        let result = await queryBaseline(key, context, memo: memo, month: month)
-        memo.record(result, for: month)
+        if let cached = context.openrouterBaseline, cached.month == month, cached.months == months, cached.average > 0 {
+            return cached
+        }
+        let attemptKey = month + "#" + String(months)
+        if let earlier = memo.attempt(for: attemptKey) { return earlier }
+        let result = await queryBaseline(key, context, memo: memo, month: month, months: months)
+        memo.record(result, for: attemptKey)
         return result
     }
 
-    static func queryBaseline(_ key: String, _ context: CollectorContext, memo: AnalyticsMemo, month: String) async -> MonthlyBaseline? {
+    static func queryBaseline(_ key: String, _ context: CollectorContext, memo: AnalyticsMemo,
+                              month: String, months: Int) async -> MonthlyBaseline? {
         let http = context.httpClient
-        guard http.post != nil, let range = baselineRange(context.now) else { return nil }
+        guard http.post != nil, let range = baselineRange(context.now, months: months) else { return nil }
         var metric = memo.costMetric
         if metric == nil {
             guard case .success(let doc) = await fetch(analyticsMetaURL, key: key, http: http),
@@ -182,11 +196,11 @@ extension OpenRouterCollector {
             memo.costMetric = picked
             metric = picked
         }
-        guard let metric, let body = queryBody(metric: metric, now: context.now),
+        guard let metric, let body = queryBody(metric: metric, now: context.now, months: months),
               case .success(let doc) = await fetch(analyticsQueryURL, key: key, http: http, body: Data(body.utf8)),
-              let total = parseTotal(doc, metric: metric, start: range.start, end: range.end) else { return nil }
-        let average = total / 2
+              let total = parseTotal(doc, metric: metric, start: range.start, end: range.end, months: months) else { return nil }
+        let average = total / Double(months)
         guard average.isFinite, average > 0 else { return nil }
-        return MonthlyBaseline(month: month, average: average, months: 2, label: rangeLabel(range.start))
+        return MonthlyBaseline(month: month, average: average, months: months, label: rangeLabel(range.start, months: months))
     }
 }

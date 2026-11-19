@@ -195,15 +195,20 @@ Management keys cannot run completions; the app only uses one to read usage.
 - **When it is set it takes over** — the inference key is not looked up at
   all. The app reads `GET /api/v1/keys` (enabled, unexpired keys, 100 per page,
   up to 10 pages) and `GET /api/v1/credits`, and shows:
-  - **All keys · this month** — the sum of every key's monthly spend, as a
-    meter against the **average of the previous two calendar months**
-    (UTC), captioned like *$49.93 of $61.20 avg (Sep–Oct) · Resets in 11d 7h*.
-    Over the average it turns yellow, says *over the 2-month average* and
-    shows the real percent (say 120%; the bar is full). The average comes from
+  - **All keys · this month** — the sum of every key's monthly spend. With the
+    **Usage meter** on (the default) it is a meter against the **average of
+    the last N full calendar months** (UTC; **Average of the last N months**,
+    1–12, default 2; `openrouterAverageMonths`), captioned like
+    *$49.93 of $61.20 avg (Sep–Oct) · Resets in 11d 7h* — *avg (Aug–Oct)* for
+    three months, *$49.93 of $40.00 (Oct)* for one. Over the average it turns
+    yellow, says *over the 2-month average* (or *over last month*) and shows
+    the real percent (say 120%; the bar is full). The average comes from
     OpenRouter's analytics (`GET /api/v1/analytics/meta`, then one
-    `POST /api/v1/analytics/query` per month, cached); if that isn't
-    available, from the months the app has observed itself (two, or one —
-    *avg (1 month)*). With no baseline at all it is the dollar figure only;
+    `POST /api/v1/analytics/query` per month and N, cached); if that isn't
+    available, from the months the app has observed itself (up to twelve) —
+    *avg (2 of 3 months)* when it knows fewer than N. With the usage meter off,
+    or no baseline at all, it is the dollar figure only, and with it off no
+    analytics request is made;
   - **Credits** — what is left on the account, as a plain figure
     (*$20.81 left*); lifetime purchases and usage are not shown;
   - **the top N keys by spend this month** — N is **Show the top N keys**
@@ -215,8 +220,8 @@ Management keys cannot run completions; the app only uses one to read usage.
     four characters — never the full label).
 
   The **menu bar** shows the mark, the credits left (`$20.81`, normal colour)
-  and one meter — this month against the two-month average — when there is a
-  baseline (Percentages style: `$20.81 · 82%`). Never key rows; Marks only
+  and one meter — this month against the N-month average — when the usage
+  meter is on and there is a baseline (Percentages style: `$20.81 · 82%`). Never key rows; Marks only
   stays marks only. If OpenRouter does not report credits for the account, it
   shows this month's spend instead. The tooltip and
   `--text` read `OpenRouter: $20.81 credits left · $49.93 this month`.
@@ -709,6 +714,7 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
 | `grokHome` | string | `""` | Grok home; empty uses `$GROK_HOME` or `~/.grok` |
 | `botHome` | string | `""` | Grok Bot cache directory; empty tries the locations listed under [Grok](#grok) |
 | `authFile` | string | `""` | An OpenCode 1 `auth.json` holding the OpenRouter key; when set, only this file is read |
+| `openrouterAverageMonths` | int | `2` | With an OpenRouter management key: the usage meter compares this month with the average of the last N full months, 1–12; `0` turns the meter off (no meter, no analytics request). The Settings toggle **Usage meter** is simply this value > 0 |
 | `openrouterKeyRows` | int | `3` | With an OpenRouter management key: how many of the keys used most this month the panel lists, 0–12 (0 = none); the bar never shows them |
 | `autoUpdate` | bool | `true` | Check for and install signed updates in the background (see [Updates](#updates)); **Check for Updates…** works either way |
 
@@ -742,7 +748,8 @@ after `-w`, so `security` asks for it instead of taking it on the command line).
   1. OpenRouter's `/api/v1/key` and `/api/v1/credits` — or, with a management
      key, `/api/v1/keys` and `/api/v1/credits`, plus at most once a month
      `/api/v1/analytics/meta` and a `POST` to `/api/v1/analytics/query` (a small
-     JSON body: the cost metric and the previous two months);
+     JSON body: the cost metric and the previous N months; none when the usage
+     meter is off);
   2. Anthropic's `/api/oauth/usage`;
   3. GitHub, for [updates](#updates): `api.github.com` for this repository's
      `releases/latest`, then the release's `.dmg` and `.dmg.sig` from

@@ -7,10 +7,12 @@
   **Settings → Advanced → OpenRouter** and OpenRouter covers every key on the
   account, not just one inference key:
   - **All keys · this month** — every key's monthly spend as a meter against
-    the average of the previous two calendar months (*$49.93 of $61.20 avg
+    the average of the last N calendar months (*$49.93 of $61.20 avg
     (Sep–Oct)*), from OpenRouter's analytics (queried at most once a month),
     else from the months the app has observed; yellow and the real percent
-    when over;
+    when over. **Usage meter** (on/off) and **Average of the last N months**
+    (1–12, default 2) sit next to the key in Settings; off means no meter and
+    no analytics request;
   - **Credits** — the credits left (*$20.81 left*), with no lifetime totals;
   - the top N keys by spend this month (**Show the top N keys**, default 3,
     0–12): a meter against the key's limit with its reset, or

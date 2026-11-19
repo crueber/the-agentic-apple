@@ -65,15 +65,15 @@ public struct Activity: Codable, Equatable, Sendable {
     public static let empty = Activity()
 }
 
-/// OpenRouter account-wide: the average monthly spend of the two calendar
-/// months before `month` (UTC), from OpenRouter's analytics. Cached with the
+/// OpenRouter account-wide: the average monthly spend of the N calendar months
+/// before `month` (UTC), from OpenRouter's analytics. Cached with the
 /// provider, so it is queried at most once a month.
 public struct MonthlyBaseline: Codable, Equatable, Sendable {
     /// "2026-11": the month this is the baseline *for* (the current month when read).
     public var month: String
     /// Dollars per month, > 0.
     public var average: Double
-    /// Months averaged (2).
+    /// Months averaged (N).
     public var months: Int
     /// "Sep–Oct".
     public var label: String
@@ -98,12 +98,15 @@ public struct Money: Codable, Equatable, Sendable {
     public var totalCredits: Double?  // account credits purchased
     public var resetInterval: String  // "monthly", "weekly", "daily", ""
     public var resetsAt: Double       // epoch ms
-    /// Account-wide only: the previous two months' average spend (analytics), nil when unknown.
+    /// Account-wide only: the previous N months' average spend (analytics), nil when unknown.
     public var baseline: MonthlyBaseline?
+    /// Account-wide only: the usage meter's N (`openrouterAverageMonths`) at
+    /// collection time; 0 = meter off; nil (older caches) = 2.
+    public var averageMonths: Int?
 
     public init(label: String = "", limit: Double? = nil, spend: Double = 0, credits: Double? = nil,
                 totalCredits: Double? = nil, resetInterval: String = "", resetsAt: Double = 0,
-                baseline: MonthlyBaseline? = nil) {
+                baseline: MonthlyBaseline? = nil, averageMonths: Int? = nil) {
         self.label = label
         self.limit = limit
         self.spend = spend
@@ -112,6 +115,7 @@ public struct Money: Codable, Equatable, Sendable {
         self.resetInterval = resetInterval
         self.resetsAt = resetsAt
         self.baseline = baseline
+        self.averageMonths = averageMonths.map { min(12, max(0, $0)) }
     }
 }
 
@@ -187,6 +191,8 @@ public struct CollectorContext: Sendable {
     /// OpenRouter account-wide: the baseline from the last collection (the
     /// cache), so analytics is not queried again within the same month.
     public var openrouterBaseline: MonthlyBaseline?
+    /// OpenRouter account-wide usage meter: months to average (1–12), 0 = off.
+    public var openrouterAverageMonths: Int = 2
 
     public init(home: URL = FileManager.default.homeDirectoryForCurrentUser,
                 environment: [String: String] = ProcessInfo.processInfo.environment,

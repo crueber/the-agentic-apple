@@ -160,24 +160,35 @@ public enum Meters {
             resetInterval: money.resetInterval, keyLabel: money.label)
     }
 
-    /// Account-wide average month, from analytics (`money.baseline`, this month
-    /// only) or else the observed history: previous and older cycle averaged,
-    /// or the previous alone. nil when there is no positive baseline.
-    public static func accountBaseline(_ money: Money, history: CycleHistory = .empty, now: Date? = nil)
+    /// Account-wide baseline: the average of the last N months (N =
+    /// `money.averageMonths`, nil = 2, 0 = off → nil). From analytics
+    /// (`money.baseline`, this month and this N only), else the observed
+    /// history: the most recent min(N, known) completed cycles.
+    /// `text`: "(Oct)" (N = 1), "avg (Sep–Oct)", "avg (Aug–Oct)", or
+    /// "avg (2 of 3 months)" when fewer months are known than asked for.
+    /// `months`: how many were actually averaged.
+    public static func accountBaseline(_ money: Money, history: CycleHistory = .empty)
         -> (average: Double, months: Int, text: String)? {
-        // Analytics' figure only for the month it was read for (a merge can carry
-        // last month's money past the 1st).
+        let n = min(OpenRouterCollector.maxAverageMonths,
+                    max(0, money.averageMonths ?? OpenRouterCollector.defaultAverageMonths))
+        guard n > 0 else { return nil }
+        // Analytics' figure only for the month and N it was read for (a merge can
+        // carry last month's money past the 1st).
         let moneyMonth = money.resetsAt > 0
             ? OpenRouterCollector.monthKey(Date(timeIntervalSince1970: (money.resetsAt - 1) / 1000)) : nil
-        if let b = money.baseline, b.average.isFinite, b.average > 0, moneyMonth == nil || moneyMonth == b.month {
-            return (b.average, max(1, b.months), "avg (" + b.label + ")")
+        if let b = money.baseline, b.months == n, b.average.isFinite, b.average > 0, moneyMonth == nil || moneyMonth == b.month {
+            return (b.average, n, n == 1 ? "(" + b.label + ")" : "avg (" + b.label + ")")
         }
-        let cycles = history.completedCycles()
+        let cycles = Array(history.completedCycles().prefix(n))
         guard !cycles.isEmpty else { return nil }
         let average = cycles.reduce(0) { $0 + $1.spend } / Double(cycles.count)
         guard average.isFinite, average > 0 else { return nil }
-        if cycles.count == 1 { return (average, 1, "avg (1 month)") }
-        return (average, 2, "avg (" + monthLabel(cycles[1]) + "\u{2013}" + monthLabel(cycles[0]) + ")")
+        let k = cycles.count
+        let text: String
+        if k < n { text = "avg (\(k) of \(n) months)" }
+        else if n == 1 { text = "(" + monthLabel(cycles[0]) + ")" }
+        else { text = "avg (" + monthLabel(cycles[k - 1]) + "\u{2013}" + monthLabel(cycles[0]) + ")" }
+        return (average, k, text)
     }
 
     /// "Oct" for the cycle that resets on 1 November.
@@ -189,7 +200,7 @@ public enum Meters {
     }
 
     /// "All keys · this month": a meter of this month's spend against the
-    /// two-month average when there is one (the percent stays honest above 100;
+    /// N-month average when there is one (none when the usage meter is off) (the percent stays honest above 100;
     /// over the average is yellow), else dollars.
     static func accountWindow(_ money: Money, history: CycleHistory, warn: Double, critical: Double) -> MeterWindow {
         let spend = money.spend.isFinite ? max(0, money.spend) : 0
@@ -212,7 +223,7 @@ public enum Meters {
             previous: history.normalized().previous, credits: money.credits, totalCredits: money.totalCredits,
             resetInterval: money.resetInterval, keyLabel: money.label,
             baselineText: base?.text ?? "",
-            overNote: base?.months == 1 ? "over the previous month" : "over the 2-month average")
+            overNote: (base?.months ?? 1) <= 1 ? "over last month" : "over the \(base!.months)-month average")
     }
 
     /// `keyRows`: OpenRouter account-wide only — how many key rows to keep

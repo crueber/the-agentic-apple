@@ -51,6 +51,17 @@ final class AppSettings: ObservableObject {
     @Published var launchAtLogin: Bool { didSet { defaults.set(launchAtLogin, forKey: Keys.launchAtLogin) } }
     /// OpenRouter with a management key: how many of the keys used most this month
     /// the panel lists (0–12, default 3). The bar never shows key rows.
+    /// OpenRouter with a management key: the usage meter compares this month with
+    /// the average of the last N full months (1–12, default 2). 0 = the meter is
+    /// off (and no analytics request is made). The single source of truth: the
+    /// Settings toggle is `openrouterAverageMonths > 0`.
+    @Published var openrouterAverageMonths: Int {
+        didSet {
+            let clamped = Self.clampAverageMonths(openrouterAverageMonths)
+            if clamped != openrouterAverageMonths { openrouterAverageMonths = clamped; return }
+            defaults.set(openrouterAverageMonths, forKey: Keys.openrouterAverageMonths)
+        }
+    }
     @Published var openrouterKeyRows: Int {
         didSet {
             let clamped = Self.clampKeyRows(openrouterKeyRows)
@@ -78,10 +89,13 @@ final class AppSettings: ObservableObject {
         static let launchAtLogin = "launchAtLogin"
         static let autoUpdate = "autoUpdate"
         static let openrouterKeyRows = "openrouterKeyRows"
+        static let openrouterAverageMonths = "openrouterAverageMonths"
     }
 
     nonisolated static let defaultKeyRows = 3
     nonisolated static func clampKeyRows(_ n: Int) -> Int { min(12, max(0, n)) }
+    nonisolated static let defaultAverageMonths = 2
+    nonisolated static func clampAverageMonths(_ n: Int) -> Int { min(12, max(0, n)) }
 
     /// "show" + capitalised id, exactly as the reference: showOpenrouter, showOpencode, …
     nonisolated static func showKey(_ id: ProviderID) -> String {
@@ -108,6 +122,7 @@ final class AppSettings: ObservableObject {
         launchAtLogin = defaults.bool(forKey: Keys.launchAtLogin)
         autoUpdate = defaults.object(forKey: Keys.autoUpdate) as? Bool ?? true
         openrouterKeyRows = s.openrouterKeyRows
+        openrouterAverageMonths = s.openrouterAverageMonths
     }
 
     func isShown(_ id: ProviderID) -> Bool { visibility[id] != false }
@@ -135,6 +150,7 @@ struct SettingsSnapshot: Sendable {
     var botHome = ""
     var authFile = ""
     var openrouterKeyRows = 3
+    var openrouterAverageMonths = 2
 
     static func read(_ d: UserDefaults) -> SettingsSnapshot {
         typealias K = AppSettings.Keys
@@ -155,12 +171,17 @@ struct SettingsSnapshot: Sendable {
         s.openrouterKeyRows = AppSettings.clampKeyRows(
             Schedule.clampInt((d.object(forKey: K.openrouterKeyRows) as? NSNumber)?.doubleValue, 0, 12,
                               fallback: AppSettings.defaultKeyRows))
+        s.openrouterAverageMonths = AppSettings.clampAverageMonths(
+            Schedule.clampInt((d.object(forKey: K.openrouterAverageMonths) as? NSNumber)?.doubleValue, 0, 12,
+                              fallback: AppSettings.defaultAverageMonths))
         return s
     }
 
     func context(searchPath: [String], now: Date = Date()) -> CollectorContext {
-        CollectorContext(searchPath: searchPath,
-                         opencodeCommand: opencodeCommand, codexCommand: codexCommand,
-                         grokHome: grokHome, botHome: botHome, authFile: authFile, now: now)
+        var context = CollectorContext(searchPath: searchPath,
+                                       opencodeCommand: opencodeCommand, codexCommand: codexCommand,
+                                       grokHome: grokHome, botHome: botHome, authFile: authFile, now: now)
+        context.openrouterAverageMonths = openrouterAverageMonths
+        return context
     }
 }
