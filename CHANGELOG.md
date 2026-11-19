@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.1.0 — 2026-11-19
+
+- **OpenRouter account-wide with a management key.** Paste an OpenRouter
+  management key (from openrouter.ai/settings/management-keys) into
+  **Settings → Advanced → OpenRouter** and OpenRouter covers every key on the
+  account, not just one inference key:
+  - **All keys · this month** — every key's monthly spend, in dollars until a
+    previous month has been observed, then a meter against it (yellow when
+    over), like the per-key cycle;
+  - **Credits** — credits used against purchased, *$X left of $Y*;
+  - a row for each key with a spending limit (up to six, fullest first), with
+    its daily, weekly or monthly reset.
+
+  The bar shows the month, Credits and the fullest key. **Save** verifies the
+  key (*Verified · N keys*, or why not); **Remove** returns to the per-key
+  view. `OPENROUTER_MANAGEMENT_KEY` from your login shell works too.
+- **Stored only in the Keychain.** The management key lives in your login
+  Keychain (`com.crueber.agentic-apple.openrouter-management-key`), never in
+  settings, the cache, logs or CLI output, and is never shown again after
+  saving. A failing management key is reported (for example *Management key
+  expired or invalid*) and the last numbers are kept; the app does not quietly
+  fall back to the inference key.
+- Without a management key, OpenRouter behaves exactly as before.
+
 ## 1.0.2 — 2026-11-18
 
 - **Grok shows both meters.** With only Grok Bot in use, Grok now shows the

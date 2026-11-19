@@ -1,22 +1,54 @@
 import Foundation
 
-/// OpenRouter collector, ported from the reference `collectOpenRouter`.
+/// OpenRouter collector, ported from the reference `collectOpenRouter`, plus an
+/// account-wide mode for a **management key** (`OpenRouterAccount.swift`).
 ///
-/// The key comes from `OPENROUTER_API_KEY`, else the `authFile` override
-/// (`OPENROUTER_AUTH_FILE` too), else OpenCode's `auth.json`, else
-/// `opencode auth export`. It is used only in an HTTPS `Authorization` header:
-/// never logged, cached, returned, or passed on a command line.
+/// Management key (takes precedence when present): `OPENROUTER_MANAGEMENT_KEY`,
+/// else the login Keychain item `managementKeyService` / `managementKeyAccount`
+/// read through `/usr/bin/security find-generic-password … -w` (injectable as
+/// `managementKeyReader`). Then `GET /api/v1/keys` (paginated) and
+/// `/api/v1/credits`; the inference key is not resolved at all.
 ///
-/// `limits` stay empty on purpose — the Logic layer derives OpenRouter's
-/// window from `money` and the previous-cycle history.
+/// Inference key (otherwise): `OPENROUTER_API_KEY`, else the `authFile`
+/// override (`OPENROUTER_AUTH_FILE` too), else OpenCode's `auth.json`, else
+/// `opencode auth export`; then `GET /api/v1/key` and `/api/v1/credits`.
+///
+/// Either key is used only in an HTTPS `Authorization` header: never logged,
+/// cached, returned, or passed on a command line.
+///
+/// Per-key mode leaves `limits` empty — the Logic layer derives OpenRouter's
+/// window from `money` and the previous-cycle history. Account-wide mode adds a
+/// `credits` limit and one `key-<hash>` limit per key with a spending limit.
 public struct OpenRouterCollector: ProviderCollector {
-    public init() {}
+    /// Returns the raw management key, or nil when there is none; throws when
+    /// the store could not be read (e.g. `security` timed out). Tests inject
+    /// one; the default reads the Keychain through `/usr/bin/security`.
+    public typealias ManagementKeyReader = @Sendable (CollectorContext) throws -> String?
+
+    public let managementKeyReader: ManagementKeyReader
+
+    public init(managementKeyReader: @escaping ManagementKeyReader = OpenRouterCollector.readManagementKeyFromKeychain) {
+        self.managementKeyReader = managementKeyReader
+    }
     public var id: ProviderID { .openrouter }
 
     public static let keyURL = "https://openrouter.ai/api/v1/key"
     public static let creditsURL = "https://openrouter.ai/api/v1/credits"
 
     public func collect(_ context: CollectorContext) async -> Provider {
+        // A management key covers the whole account and wins over the inference key.
+        switch await Self.resolveManagementKey(context, reader: managementKeyReader) {
+        case .key(let management):
+            return await Self.collectAccount(management, context)
+        case .unreadable:
+            // Don't guess: the merge keeps the last good numbers with this error.
+            var provider = Provider(id: .openrouter, source: Self.accountSource)
+            provider.error = Self.unreadableKeychain
+            return provider
+        case .none:
+            break
+        }
+
         var provider = Provider(id: .openrouter, source: "openrouter-api")
 
         // `opencode auth export` and file reads block; keep them off the cooperative pool.

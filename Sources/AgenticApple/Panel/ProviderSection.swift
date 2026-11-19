@@ -15,10 +15,7 @@ struct ProviderSection: View {
     private var windows: [MeterWindow] { state.windows(provider) }
     private var allStale: Bool { !windows.isEmpty && windows.allSatisfy(\.stale) }
 
-    private var summary: MeterWindow? {
-        let live = windows.filter { !$0.stale }
-        return Meters.highest(live.isEmpty ? windows : live)
-    }
+    private var summary: MeterWindow? { Meters.summaryWindow(windows) }
 
     private var subtitle: String {
         var parts: [String] = []
@@ -52,7 +49,7 @@ struct ProviderSection: View {
                     }
                 }
             }
-            if let money = provider.money {
+            if let money = provider.money, !Summary.moneySummary(money).isEmpty {
                 Text(Summary.moneySummary(money))
                     .font(.system(size: 10.5).monospacedDigit())
                     .foregroundStyle(.secondary)

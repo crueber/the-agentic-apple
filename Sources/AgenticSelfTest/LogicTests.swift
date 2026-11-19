@@ -35,6 +35,7 @@ enum LogicTests {
         states(t)
         formatting(t)
         openrouter(t)
+        openrouterAccount(t)
         history(t)
         cache(t)
         text(t)
@@ -160,6 +161,83 @@ enum LogicTests {
         t.equal(Schedule.clampInt(nil, 0, 100, fallback: 70), 70)
         t.equal(Schedule.clampInt(.nan, 0, 100, fallback: 90), 90)
         t.equal(Schedule.clampInt(70.5, 0, 100, fallback: 0), 71)
+    }
+
+    // MARK: OpenRouter, management key (account-wide)
+
+    static func openrouterAccount(_ t: TestRun) {
+        let money = Money(label: Money.accountWideLabel, limit: nil, spend: 8, credits: 74.75, totalCredits: 100.5,
+                          resetInterval: "monthly", resetsAt: cycleEnd)
+        let limits = [
+            Limit(key: "credits", label: "Credits", short: "cr", percent: 25.62),
+            Limit(key: "key-aaaa1111", label: "Production", short: "key", percent: 80, resetsAt: cycleEnd),
+            Limit(key: "key-bbbb2222", label: "Staging", short: "key", percent: 30, resetsAt: now + day / 2),
+        ]
+        var p = provider(.openrouter, tier: "Management key", limits: limits, money: money)
+        p.status = "3 keys"
+
+        // No previous cycle yet: dollars for the money window, meters for the rest.
+        let windows = Meters.windowsFor(p)
+        t.equal(windows.map(\.key), ["cycle", "credits", "key-aaaa1111", "key-bbbb2222"], "money window, credits, keys")
+        t.equal(windows[0].detail, "All keys \u{00B7} this month")
+        t.equal(windows[0].mode, .dollars)
+        t.check(windows[0].limit == nil, "no single key limit account-wide")
+        t.equal(windows[1].detail, "Credits")
+        t.equal(windows[1].credits, 74.75)
+        t.equal(windows[1].totalCredits, 100.5)
+        t.equal(Summary.windowCaption(windows[1], now: now), "$74.75 left of $100.50")
+        t.equal(Summary.windowCaption(windows[2], now: now), "Resets in 15d 12h")
+        t.equal(Summary.windowCaption(windows[3], now: now), "Resets in 12h 0m")
+        t.equal(windows[2].color, .warning, "key at 80%")
+        t.check(Summary.creditsText(windows[2]) == nil, "credits caption only on the Credits row")
+        t.equal(Summary.moneySummary(money), "", "no misleading 'No key limit' line")
+
+        // The bar: the money window, credits, the highest key; dollars beside the meters.
+        t.equal(Meters.barWindows(p).map(\.key), ["cycle", "credits", "key-aaaa1111"])
+        t.equal(Meters.barMeters(p).map(\.key), ["credits", "key-aaaa1111"])
+        t.equal(Meters.barDollarsText(p), "$8.00")
+        t.equal(Summary.compactText(p), "$8.00 \u{00B7} cr 25.6% \u{00B7} key 80%")
+        t.equal(Meters.providerColor(p), .warning)
+        t.equal(Meters.highestMeterPercent([p]), 80)
+
+        // With a previous month observed: the money window becomes a meter vs that month.
+        let hist = CycleHistory(current: Cycle(key: "c", end: cycleEnd, spend: 8, lastObservedAt: now),
+                                previous: Cycle(key: "p", end: cycleEnd - 30 * day, spend: 16, lastObservedAt: cycleEnd - 30 * day)).normalized()
+        let metered = Meters.windowsFor(p, history: hist)
+        t.equal(metered[0].mode, .meter)
+        t.equal(metered[0].percent, 50)
+        t.equal(Summary.windowCaption(metered[0], now: now), "$8.00 of $16.00 \u{00B7} Resets in 15d 12h")
+        t.equal(Meters.barMeters(p, history: hist).map(\.key), ["cycle", "credits", "key-aaaa1111"])
+        var over = p
+        over.money?.spend = 20
+        t.equal(Meters.windowsFor(over, history: hist)[0].color, .yellow, "over the previous month")
+        t.equal(Meters.providerColor(over, history: hist), .warning, "a key at 80% is not masked by the dollars window")
+        t.equal(Meters.summaryWindow(Meters.windowsFor(over, history: hist))?.key, "key-aaaa1111", "headline from a meter")
+        var hot = over
+        hot.limits[1].percent = 95
+        t.equal(Meters.providerColor(hot, history: hist), .critical, "over the previous month + a key at 95%")
+        t.check(Meters.isAlarming(hot, history: hist), "alarms")
+        var calmOver = over
+        calmOver.limits = [Limit(key: "credits", label: "Credits", short: "cr", percent: 10)]
+        t.equal(Meters.providerColor(calmOver, history: hist), .yellow, "yellow when nothing else is elevated")
+
+        let tip = Summary.providerTooltip(p, history: hist, now: now)
+        t.check(tip.contains("All keys \u{00B7} this month: 50% of $16.00"), "tooltip money line: \(tip)")
+        t.check(tip.contains("Credits: 25.6% \u{00B7} $74.75 left of $100.50"), "tooltip credits line: \(tip)")
+        t.check(tip.hasPrefix("OpenRouter \u{00B7} Management key\n3 keys"), "tooltip head")
+
+        // The cycle history keeps working for the account-wide money.
+        let advanced = CycleHistory.empty.advanced(with: money, now: now)
+        t.equal(advanced.current?.end, cycleEnd)
+        t.equal(advanced.current?.spend, 8)
+
+        // Weekly/daily phrasing, and limits never leak into other providers' logic.
+        t.equal(Meters.periodPhrase("weekly"), "this week")
+        t.equal(Meters.periodPhrase("daily"), "today")
+        t.equal(Meters.periodPhrase(""), "this month")
+        let perKey = provider(.openrouter, money: Money(label: "key \u{2026}abc", limit: nil, spend: 3, resetInterval: "monthly"))
+        t.equal(Meters.windowsFor(perKey).map(\.key), ["cycle"], "per-key view unchanged")
+        t.equal(Summary.compactText(perKey), "$3.00")
     }
 
     // MARK: OpenRouter
@@ -479,6 +557,11 @@ enum LogicTests {
         // Fresh limits after sign-in returns replace the stale ones.
         let back = provider(.claude, limits: [limit("session", 3)])
         t.equal(ProviderMerge.merge(previous: [merged], fresh: [back])[0], back)
+        // intervalName: OpenRouter sends "daily" (no "day" substring).
+        t.equal(Format.intervalName("daily"), "Daily", "daily")
+        t.equal(Format.intervalName("day"), "Daily")
+        t.equal(Format.intervalName("weekly"), "Weekly")
+        t.equal(Format.intervalName("monthly"), "Monthly")
     }
 }
 

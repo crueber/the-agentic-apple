@@ -59,7 +59,8 @@ enum OpenRouterTests {
 
     static func run(_ t: TestRun) async {
         t.suite("OpenRouter")
-        let c = OpenRouterCollector()
+        // Never the real Keychain: no management key unless a test injects one.
+        let c = OpenRouterCollector(managementKeyReader: { _ in nil })
 
         // No key anywhere: not available, reference wording, no request made.
         do {
@@ -260,5 +261,8 @@ enum OpenRouterTests {
         t.equal(OpenRouterCollector.maskKeyLabel("demo-"), "OpenRouter key")
         t.equal(OpenRouterCollector.maskKeyLabel(nil), "OpenRouter key")
         t.equal(OpenRouterCollector.maskKeyLabel(42), "OpenRouter key")
+
+        await management(t)
+        await resetDates(t)
     }
 }

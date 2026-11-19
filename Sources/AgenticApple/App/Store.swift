@@ -138,6 +138,21 @@ final class Store: ObservableObject {
     /// Manual: refresh button, `r`, middle click, menu. Throttled to one every 30 s.
     func refreshNow() { requestFetch(manual: true) }
 
+    /// A credential changed (the OpenRouter management key was saved or removed):
+    /// fetch now, past the 30 s manual throttle; after a running collection if one is.
+    func refreshAfterCredentialChange() {
+        guard !fetchesHeld else { return }
+        guard searchPathReady else { pendingFetch = true; return }
+        if busy || collecting { fetchAfterCollect = true; lastAttemptMs = 0; return }
+        lastAttemptMs = 0
+        spawnFetch()
+    }
+
+    /// `OPENROUTER_MANAGEMENT_KEY` is set (it wins over the Keychain item). Presence only.
+    var managementKeyInEnvironment: Bool {
+        OpenRouterCollector.normalizedManagementKey(environment[OpenRouterCollector.managementKeyEnv]) != nil
+    }
+
     func requestFetch(manual: Bool) {
         guard !fetchesHeld else { return }
         guard searchPathReady else {

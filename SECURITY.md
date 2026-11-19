@@ -115,7 +115,7 @@ a manual check only reports the new version.
 
 | Agent | Read | Never read |
 | --- | --- | --- |
-| OpenRouter | `OPENROUTER_API_KEY`; the configured auth file or `OPENROUTER_AUTH_FILE`; OpenCode's `auth.json`; the output of `opencode auth export` | — |
+| OpenRouter | a management key from `OPENROUTER_MANAGEMENT_KEY`, else the app's own Keychain item `com.crueber.agentic-apple.openrouter-management-key` (via `/usr/bin/security`); without one, `OPENROUTER_API_KEY`; the configured auth file or `OPENROUTER_AUTH_FILE`; OpenCode's `auth.json`; the output of `opencode auth export` | the full key label (only a key's `name`, or four trailing characters, are shown) |
 | OpenCode | the local API through `opencode api GET /api/experimental/usage/limits`; `opencode.db` through `/usr/bin/sqlite3 -readonly`, selecting only message counts and token sums | message text |
 | Grok | `~/.grok/logs/unified.jsonl` (the billing snapshot line); `~/.grok/sessions/**/usage.json` (numeric ledgers); Grok Bot's small cached `*.blob` JSON (≤ 64 KB) | `~/.grok/auth.json`, prompts, responses, Grok Bot's session or cookies |
 | Codex | `~/.codex/auth.json`, parsed only for `auth_mode` and whether an API key field is non-empty; `cli_auth_credentials_store` in `~/.codex/config.toml`; the app-server's rate-limit answer | any token value |
@@ -128,7 +128,9 @@ No prompt text, response text or session content is stored or displayed.
 - **Read-only.** Keys and tokens are read at request time, held in memory for
   that request, and dropped. The app never refreshes Claude's OAuth token,
   never writes any credential back, and never stores one in its cache, its
-  defaults domain or a log.
+  defaults domain or a log. The one credential the app writes is the
+  OpenRouter management key you paste into Settings, and only to the Keychain
+  (below).
 - **Never on a command line.** No key or token is passed as an argument to
   any process. `security find-generic-password -w` prints the Claude
   credential to the app over a pipe.
@@ -136,6 +138,29 @@ No prompt text, response text or session content is stored or displayed.
   `Authorization` header to `openrouter.ai`; Claude's access token only in one
   to `api.anthropic.com`. Error text from OpenRouter is scrubbed of the key
   before it is displayed.
+- **OpenRouter management key.** Optional; pasted into **Settings → Advanced**
+  (a secure field) or exported as `OPENROUTER_MANAGEMENT_KEY`. **Save** trims
+  it, rejects anything that does not look like a key (empty, whitespace or
+  non-ASCII inside, implausible length), and writes it with the Security
+  framework (`SecItemDelete` then `SecItemAdd`, `SecItemUpdate` only if the old
+  item cannot be deleted) to the **login Keychain** as a generic password:
+  service `com.crueber.agentic-apple.openrouter-management-key`, account
+  `default`. The item is created with an access list (`SecAccessCreate`,
+  `SecTrustedApplicationCreateFromPath`) that trusts the app and
+  `/usr/bin/security`. Those APIs are deprecated, but they are the only way to
+  set a file-based Keychain item's access list, and they matter here: the app
+  is ad-hoc signed, so its identity changes with every update, while
+  `/usr/bin/security` does not — the collector reads the item through
+  `security find-generic-password -s … -a default -w` (key on stdout, never on
+  argv), as it does for Claude, so updates do not bring back a prompt. The app
+  itself never reads the secret back: Settings only checks that the item
+  exists (attributes, no data) and shows `•••• saved`. **Save** also sends the
+  key once to `GET /api/v1/keys` to verify it. **Remove** deletes the item.
+  The key is never written to the defaults domain, the cache, the update log,
+  an error, `--json`/`--text` output or the `Provider` model; errors from
+  OpenRouter are scrubbed of it. When a management key is set it replaces the
+  inference key entirely (the inference key is not even looked up), and a
+  failing management key is reported, never silently replaced.
 - **Keychain.** The Claude item is read through Apple's `/usr/bin/security`
   so the user's **Always Allow** applies to that system tool rather than to an
   ad-hoc signature that changes on every rebuild. Denying access is safe: the
@@ -151,6 +176,9 @@ The app makes requests of its own to three destinations:
 - OpenRouter:
   - `GET https://openrouter.ai/api/v1/key`
   - `GET https://openrouter.ai/api/v1/credits` (optional)
+  - with a management key instead: `GET https://openrouter.ai/api/v1/keys?offset=N`
+    (at most 10 pages per refresh, and once when you click **Save**) and
+    `GET https://openrouter.ai/api/v1/credits`
 - Anthropic: `GET https://api.anthropic.com/api/oauth/usage`
 - GitHub, for updates (about 2 minutes after launch, then every 6 hours, only
   when `autoUpdate` is on; or when you choose **Check for Updates…**):
@@ -176,6 +204,7 @@ nothing about you or your agents.
 | --- | --- | --- |
 | your login shell (`$SHELL`, else `/bin/zsh`) | `-l -i -c` with a fixed script printing `PATH` and an allowlist of variables | once per launch, in its own session with no terminal, bounded by a timeout |
 | `/usr/bin/security` | `find-generic-password -s "Claude Code-credentials" -w` | each refresh |
+| `/usr/bin/security` | `find-generic-password -s com.crueber.agentic-apple.openrouter-management-key -a default -w` | each refresh, unless `OPENROUTER_MANAGEMENT_KEY` is set |
 | `/usr/bin/sqlite3` | `-readonly -json -cmd ".timeout 2000" <opencode.db> <fixed query>` | each refresh, when OpenCode's store exists |
 | `opencode` | `api GET /api/experimental/usage/limits`, then `api --standalone GET …`; `auth export openrouter`, `auth export` | each refresh |
 | `codex` | `-s read-only -a on-request app-server` | each refresh, when Codex is signed in to a plan; shut down after it answers |
@@ -193,7 +222,8 @@ probe and the fixed relaunch helper above). Each, except the relaunch helper tha
 timeout (killed after it), stdin closed or fed a fixed payload, and output
 capped (8 MB stdout, 256 KB stderr); children run in their own process group,
 which is killed as a whole on timeout. The login-shell probe imports only `PATH`
-and the variables listed in the README (`OPENROUTER_API_KEY`, `CODEX_HOME`,
+and the variables listed in the README (`OPENROUTER_API_KEY`,
+`OPENROUTER_MANAGEMENT_KEY`, `CODEX_HOME`,
 `CLAUDE_CONFIG_DIR`, …); their values are never logged. It runs your shell's
 startup files once; if that is not acceptable, launch the app from a context
 whose `PATH` already holds your tools and set the command paths in Settings.
@@ -212,6 +242,10 @@ app runs whatever executable you point it at.
     file paths, sizes, byte offsets, counts and 64-bit FNV hashes of message and
     request ids. No text.
 - The user defaults domain `com.crueber.agentic-apple` (settings only).
+- The login Keychain item `com.crueber.agentic-apple.openrouter-management-key`
+  (account `default`), only when you save an OpenRouter management key, and
+  deleted by **Remove**. `scripts/uninstall.sh` leaves it; delete it with
+  `security delete-generic-password -s com.crueber.agentic-apple.openrouter-management-key -a default`.
 - A login item, when you turn on **Launch at Login** (`SMAppService`).
 - `~/Library/Logs/The Agentic Apple/update.log` (directory `0700`, file
   `0600`, rotated at 256 KB with one `.1` kept): what the updater did —

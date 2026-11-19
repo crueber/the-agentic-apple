@@ -281,6 +281,7 @@ private struct AdvancedPane: View {
 
     var body: some View {
         Form {
+            OpenRouterKeySection(store: store)
             Section {
                 PathField(title: "opencode", text: $settings.opencodeCommand, placeholder: "opencode on the login PATH")
                 PathField(title: "codex", text: $settings.codexCommand, placeholder: "codex on the login PATH")
@@ -319,6 +320,112 @@ private struct AdvancedPane: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// OpenRouter management key: stored only in the login Keychain. The field is
+/// cleared after Save and the key is never shown again.
+private struct OpenRouterKeySection: View {
+    @ObservedObject var store: Store
+    @State private var draft = ""
+    @State private var saved = ManagementKeyStore.isSaved()
+    @State private var message = ""
+    @State private var messageIsError = false
+    @State private var working = false
+
+    var body: some View {
+        Section {
+            LabeledContent("Management key") {
+                HStack(spacing: 6) {
+                    SecureField("Management key", text: $draft,
+                                prompt: Text(saved ? "\u{2022}\u{2022}\u{2022}\u{2022} saved" : "sk-or-v1-…"))
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                        .onSubmit { save() }
+                    Button("Save") { save() }
+                        .disabled(working || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Remove") { remove() }
+                        .disabled(working || !saved)
+                }
+            }
+            HStack(spacing: 6) {
+                if working { ProgressView().controlSize(.small) }
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(messageIsError ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if store.managementKeyInEnvironment {
+                Text("OPENROUTER_MANAGEMENT_KEY is set in your shell and is used instead of the saved key.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("OpenRouter")
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("With a management key, OpenRouter's meters, spend and credits cover every key on the account. It is kept only in your login Keychain, never in settings or the cache.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let page = URL(string: OpenRouterCollector.managementKeysPage) {
+                    Link("Create a management key", destination: page).font(.caption)
+                }
+            }
+        }
+    }
+
+    private var statusText: String {
+        if !message.isEmpty { return message }
+        return saved ? "Saved in Keychain" : "Not set \u{2014} using the per-key view"
+    }
+
+    private func save() {
+        let candidate = draft
+        if let problem = OpenRouterCollector.managementKeyProblem(candidate) {
+            message = problem
+            messageIsError = true
+            return
+        }
+        working = true
+        message = ""
+        Task { @MainActor in
+            // Keychain write and verification both run off the main thread.
+            let stored: String? = await Task.detached(priority: .userInitiated) { () -> String? in
+                do { try ManagementKeyStore.save(candidate); return nil }
+                catch { return String(describing: error) }
+            }.value
+            draft = ""
+            saved = ManagementKeyStore.isSaved()
+            if let stored {
+                working = false
+                message = stored
+                messageIsError = true
+                return
+            }
+            store.refreshAfterCredentialChange()
+            let check = await Task.detached(priority: .userInitiated) {
+                await OpenRouterCollector.verifyManagementKey(candidate, http: .live)
+            }.value
+            working = false
+            message = "Saved in Keychain \u{00B7} " + check.message
+            messageIsError = !check.ok
+        }
+    }
+
+    private func remove() {
+        working = true
+        Task { @MainActor in
+            let failure: String? = await Task.detached(priority: .userInitiated) { () -> String? in
+                do { try ManagementKeyStore.remove(); return nil }
+                catch { return String(describing: error) }
+            }.value
+            working = false
+            draft = ""
+            saved = ManagementKeyStore.isSaved()
+            message = failure ?? ""
+            messageIsError = failure != nil
+            store.refreshAfterCredentialChange()
+        }
     }
 }
 

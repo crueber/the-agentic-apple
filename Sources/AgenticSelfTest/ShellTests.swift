@@ -235,6 +235,7 @@ enum ShellTests {
         t.equal(Set(SearchPath.importedVariables), Set([
             "OPENROUTER_API_KEY", "CODEX_HOME", "CODEX_ACCESS_TOKEN", "CLAUDE_CONFIG_DIR", "XDG_DATA_HOME",
             "XDG_CONFIG_HOME", "MISE_DATA_DIR", "GROK_HOME", "GROK_BOT_HOME", "OPENROUTER_AUTH_FILE",
+            "OPENROUTER_MANAGEMENT_KEY",
         ]), "allowlist")
     }
 

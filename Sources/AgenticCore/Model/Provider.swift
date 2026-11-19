@@ -63,7 +63,10 @@ public struct Activity: Codable, Equatable, Sendable {
 
 /// OpenRouter's money block.
 public struct Money: Codable, Equatable, Sendable {
-    public var label: String          // masked key label, e.g. "key …demo"
+    /// `label` of the account-wide (management key) block: every key's spend.
+    public static let accountWideLabel = "All keys"
+
+    public var label: String          // masked key label, e.g. "key …demo", or "All keys"
     public var limit: Double?         // key limit in dollars (nil = none)
     public var spend: Double          // this cycle's spend
     public var credits: Double?       // account credits left

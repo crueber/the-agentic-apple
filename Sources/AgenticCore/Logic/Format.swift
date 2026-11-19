@@ -113,7 +113,7 @@ public enum Format {
     public static func intervalName(_ value: String) -> String {
         let text = value.lowercased()
         if text.contains("week") { return "Weekly" }
-        if text.contains("day") { return "Daily" }
+        if text.contains("day") || text.contains("daily") { return "Daily" }
         if text.contains("year") || text.contains("annual") { return "Yearly" }
         if text == "total" || text == "lifetime" || text == "none" { return "No reset" }
         return "Monthly"

@@ -22,10 +22,14 @@ import Foundation
 /// - `Meters.highest(_ limits: [Limit]) -> Limit?`
 /// - `Meters.openrouterWindow(_ provider:, history:, warn:, critical:) -> MeterWindow?`
 /// - `Meters.windowsFor(_ provider:, history:, warn:, critical:) -> [MeterWindow]`  panel rows, in order
+///       (OpenRouter: the money window, then its `limits` — management key: Credits, then keys)
+/// - `Meters.periodPhrase(_ interval: String) -> String`  "this month" | "this week" | "today"
 /// - `Meters.barWindows(...) -> [MeterWindow]`          first 3 windows (what the bar considers)
 /// - `Meters.barMeters(...) -> [MeterWindow]`           bar windows actually drawn as mini meters
 /// - `Meters.barDollarsText(...) -> String`             OpenRouter's "$4.20" bar text, "" when none
-/// - `Meters.providerColor(...) -> MeterState`          colour of the bar text for a provider
+/// - `Meters.providerColor(...) -> MeterState`          colour of the bar text for a provider (meters
+///       ranked first; OpenRouter's yellow only when no other window is elevated)
+/// - `Meters.summaryWindow(_ windows:) -> MeterWindow?` headline window: highest live meter, else highest
 /// - `Meters.isAlarming(...) -> Bool`                   providerColor == .critical
 /// - `Meters.highestMeterPercent(_ providers:, history:, warn:, critical:) -> Double?`  hero figure
 ///
@@ -126,9 +130,13 @@ public enum Meters {
             if used >= critical { color = .critical } else if used >= warn { color = .warning }
         }
         if over { color = .yellow }
+        let detail: String
+        if limited { detail = "Key limit" }
+        else if money.label == Money.accountWideLabel { detail = Money.accountWideLabel + " \u{00B7} " + periodPhrase(money.resetInterval) }
+        else { detail = "Cycle spend" }
         return MeterWindow(
             key: "cycle", label: "This cycle", short: "$",
-            detail: limited ? "Key limit" : "Cycle spend",
+            detail: detail,
             percent: used, resetsAt: money.resetsAt, stale: false, limited: false,
             state: color == .yellow ? .normal : color, color: color,
             mode: (limited || meterVisible) ? .meter : .dollars,
@@ -141,15 +149,36 @@ public enum Meters {
                                   warn: Double = defaultWarn, critical: Double = defaultCritical) -> [MeterWindow] {
         guard let provider else { return [] }
         if provider.id == .openrouter {
-            return openrouterWindow(provider, history: history, warn: warn, critical: critical).map { [$0] } ?? []
+            // The money window first; a management key adds Credits and per-key
+            // rows after it (the collector orders them: credits, then keys by percent).
+            var windows = openrouterWindow(provider, history: history, warn: warn, critical: critical).map { [$0] } ?? []
+            windows += provider.limits.map { limit in
+                var w = limitWindow(limit, warn: warn, critical: critical)
+                if limit.key == "credits", let money = provider.money {
+                    w.credits = money.credits
+                    w.totalCredits = money.totalCredits
+                }
+                return w
+            }
+            return windows
         }
-        return provider.limits.map { limit in
-            let state: MeterState = limit.limited ? .critical : stateOf(limit.percent, warn: warn, critical: critical)
-            return MeterWindow(key: limit.key, label: limit.label, short: limit.short, detail: limit.label,
-                               percent: limit.percent, resetsAt: limit.resetsAt, stale: limit.stale,
-                               limited: limit.limited, state: state, color: state, mode: .meter,
-                               meterVisible: true)
-        }
+        return provider.limits.map { limitWindow($0, warn: warn, critical: critical) }
+    }
+
+    static func limitWindow(_ limit: Limit, warn: Double, critical: Double) -> MeterWindow {
+        let state: MeterState = limit.limited ? .critical : stateOf(limit.percent, warn: warn, critical: critical)
+        return MeterWindow(key: limit.key, label: limit.label, short: limit.short, detail: limit.label,
+                           percent: limit.percent, resetsAt: limit.resetsAt, stale: limit.stale,
+                           limited: limit.limited, state: state, color: state, mode: .meter,
+                           meterVisible: true)
+    }
+
+    /// "this month" / "this week" / "today" for a reset interval.
+    public static func periodPhrase(_ interval: String) -> String {
+        let text = interval.lowercased()
+        if text.contains("week") { return "this week" }
+        if text.contains("day") || text.contains("daily") { return "today" }
+        return "this month"
     }
 
     public static func barWindows(_ provider: Provider?, history: CycleHistory = .empty,
@@ -180,7 +209,21 @@ public enum Meters {
                                      warn: Double = defaultWarn, critical: Double = defaultCritical) -> MeterState {
         let windows = windowsFor(provider, history: history, warn: warn, critical: critical)
         if windows.contains(where: { $0.limited }) { return .critical }
-        return highest(windows)?.color ?? .normal
+        // Rank meters first, so OpenRouter's dollars window (percent 100 when over the
+        // previous cycle) never masks a warning or critical row; yellow only when
+        // nothing else is elevated.
+        let top = summaryWindow(windows)?.color ?? .normal
+        if top == .normal, windows.contains(where: { $0.color == .yellow }) { return .yellow }
+        return top
+    }
+
+    /// The window a provider's headline figure comes from: the highest meter-mode
+    /// window (live ones first), else the highest of all.
+    public static func summaryWindow(_ windows: [MeterWindow]) -> MeterWindow? {
+        let live = windows.filter { !$0.stale }
+        let pool = live.isEmpty ? windows : live
+        let meters = pool.filter { $0.mode == .meter }
+        return highest(meters.isEmpty ? pool : meters)
     }
 
     public static func isAlarming(_ provider: Provider?, history: CycleHistory = .empty,

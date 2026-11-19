@@ -14,8 +14,9 @@ from Omarchy's `omarchy-agent-usage-claude` / `omarchy-agent-usage-codex`
 - **Command Line Tools only.** No Xcode project, no `xcodebuild`, no XCTest or
   swift-testing. Build with SwiftPM; `scripts/build-app.sh` assembles and
   ad-hoc signs the `.app`. Tests are the `agentic-selftest` executable.
-- **No dependencies.** Foundation, AppKit, SwiftUI, ServiceManagement and
-  CryptoKit (update signatures) only.
+- **No dependencies.** Foundation, AppKit, SwiftUI, ServiceManagement,
+  CryptoKit (update signatures) and Security (only `App/ManagementKeyStore`,
+  writing the OpenRouter management key) only.
 - **macOS 14+**, Swift tools 6.0, language mode 5 for every target.
 - **No Node, no Omarchy.** External tools (`opencode`, `codex`, `mise`,
   `sqlite3`, `security`) are only invoked when present.
@@ -37,6 +38,7 @@ from Omarchy's `omarchy-agent-usage-claude` / `omarchy-agent-usage-codex`
   - `Providers/` — one collector per agent, plus `Collector` (runs all five
     concurrently), `Shell` (process runner, `SearchPath`), `HTTP`, `Sanitize`.
     Each provider file's header documents its sources, paths and endpoints.
+    `OpenRouterAccount` is OpenRouter's management-key (account-wide) mode.
   - `Update/` — the updater, AppKit-free: `UpdateFeed` (GitHub
     `releases/latest`, asset names, caps, `UpdatePolicy` host allowlist),
     `UpdateDownloader`, `UpdateSignature` (Ed25519), `UpdateVersion`,
@@ -48,6 +50,8 @@ from Omarchy's `omarchy-agent-usage-claude` / `omarchy-agent-usage-codex`
   - `App/` — `CLI` (`--text`, `--json`, `--render-preview`, `--fixture`),
     `AppDelegate` (single instance, wake, About), `Store` (fetch lifecycle,
     cache, order/switch writes), `AppSettings` (UserDefaults keys),
+    `ManagementKeyStore` (writes/removes the OpenRouter management key in the
+    login Keychain; never reads the secret back),
     `AppInfo` (name, bundle id, defaults domain, cache URL), `LoginItem`.
   - `Bar/` — `StatusItemController` (status item, clicks, keys, menu,
     popover), `BarView`.
@@ -81,14 +85,18 @@ Every collector returns a `Provider`:
 `{ id, name, available, tier, status, hint, error, source, limits[{ key, label,
 short, percent, resetsAt, limited, stale }], activity{ period, prompts, tokens },
 money?, budgets[], readAt }`. `percent` is 0–100, `resetsAt` and `readAt` are
-epoch milliseconds (0 = unknown). OpenRouter's `limits` stay empty: its window
-is derived from `money` and the cycle history in `Logic/State.swift`.
+epoch milliseconds (0 = unknown). OpenRouter's window is derived from `money`
+and the cycle history in `Logic/State.swift`; with an inference key its
+`limits` stay empty. With a management key, `money.label` is
+`Money.accountWideLabel` ("All keys", Σ `usage_monthly`, no limit) and
+`limits` holds `credits`, then up to six `key-<hash8>` rows (fullest first);
+`Meters.windowsFor` puts the money window first, then those limits.
 
 ## Data sources
 
 | Provider | Source |
 | --- | --- |
-| OpenRouter | `OPENROUTER_API_KEY` → `authFile` / `OPENROUTER_AUTH_FILE` → `$XDG_DATA_HOME` or `~/.local/share/opencode/auth.json` → `opencode auth export [openrouter]`; then `GET /api/v1/key`, `/api/v1/credits` |
+| OpenRouter | Management key first: `OPENROUTER_MANAGEMENT_KEY` → Keychain `com.crueber.agentic-apple.openrouter-management-key` / `default` via `/usr/bin/security … -w`; then `GET /api/v1/keys?offset=N` (≤ 10 pages of 100) and `/api/v1/credits`, no fallback on failure. Otherwise `OPENROUTER_API_KEY` → `authFile` / `OPENROUTER_AUTH_FILE` → `$XDG_DATA_HOME` or `~/.local/share/opencode/auth.json` → `opencode auth export [openrouter]`; then `GET /api/v1/key`, `/api/v1/credits` |
 | OpenCode | `opencode api GET /api/experimental/usage/limits`, retry `opencode api --standalone GET …`; activity from `opencode.db` via `/usr/bin/sqlite3 -readonly -json` |
 | Grok | last `billing: fetched credits config` line of `~/.grok/logs/unified.jsonl`; `sessions/*/*/usage.json`; Grok Bot `*.blob` under `~/Library/Application Support/Grok Bot/sand-client-persistence`, then `~/.config/Grok Bot/…` (Grok Bot alone is enough: no CLI snapshot → Bot meter only, tier from `grokPlanLabel`) |
 | Codex | `codex -s read-only -a on-request app-server`: `initialize` → `initialized` → `account/rateLimits/read` (`rateLimitsByLimitId`, else legacy `rateLimits`), `account/read` only for the plan |
@@ -110,6 +118,12 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
    cache, log, print or pass on a command line any key or token. OpenRouter's
    key and Claude's token travel only in an HTTPS `Authorization` header.
    Codex's token is never read at all — only `auth_mode` and key presence.
+   The single exception to "read-only" is the OpenRouter management key the
+   user pastes into Settings: `ManagementKeyStore` writes it only to the login
+   Keychain (access list: the app and `/usr/bin/security`), the collector
+   reads it only through `security … -w` (injectable `managementKeyReader`),
+   and it never reaches UserDefaults, the cache, logs, argv, errors, CLI
+   output or the `Provider`. It is not a settings key.
 2. **`available` decides the bar.** Set it only for a plan, limits, a tier or
    a detected key. An agent with nothing stays out; never draw an empty shell.
 3. **Collectors never throw.** Failures become `error` (and `hint`); the
@@ -201,7 +215,8 @@ scripts/build-app.sh                  # dist/The Agentic Apple.app
 Tests must stay offline and deterministic: point `CollectorContext.home` at
 `Fixtures.tempHome(_:)`, inject `CollectorContext.http`, use
 `Fixtures.fakeBinary(in:name:script:)` for external tools, inject the Claude
-Keychain reader, and pass a fixed `now`. Never touch the real Keychain, network
+Keychain reader and OpenRouter's `managementKeyReader` (every
+`OpenRouterCollector(...)` in a test passes one), and pass a fixed `now`. Never touch the real Keychain, network
 or home directory. Do not run live `--text` / `--json` during development: it
 probes real credentials and raises the Keychain prompt; leave live checks to
 the user.

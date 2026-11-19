@@ -52,7 +52,7 @@ no Node, no Omarchy and no daemon of its own.
 
 | Agent | Menu bar | Panel rows |
 | --- | --- | --- |
-| **OpenRouter** | OpenRouter mark + meter, or dollars | This cycle's spend against the key's own limit (or the previous cycle), account credits, reset |
+| **OpenRouter** | OpenRouter mark + meter, or dollars | This cycle's spend against the key's own limit (or the previous cycle), account credits, reset; with a [management key](#management-key-account-wide), every key's spend, a Credits meter and each limited key |
 | **OpenCode** | OpenCode mark + up to three meters | 5-hour session, weekly, monthly, Console budgets, today's activity |
 | **Grok** | Grok mark + plan and Grok Bot meters | Weekly (or daily/monthly) plan limit, Grok Bot's separate weekly allowance, this week's local activity |
 | **Codex** | Codex mark + up to three meters | Session, weekly, code review, model-scoped allowances, a Business seat's spend cap |
@@ -84,7 +84,9 @@ own source says. The bar only draws the agents that pass:
 - **OpenRouter** — appears when a key is found in `OPENROUTER_API_KEY`, an
   explicit auth file (the **OpenCode auth file** setting or
   `OPENROUTER_AUTH_FILE`), OpenCode's `auth.json`, or OpenCode 2's credential
-  store (`opencode auth export`). Keys are never cached.
+  store (`opencode auth export`), or when an OpenRouter [management
+  key](#management-key-account-wide) is saved in Settings (or in
+  `OPENROUTER_MANAGEMENT_KEY`). Keys are never cached.
 - **OpenCode** — appears when the installed `opencode` answers with a Go
   allowance.
 - **Grok** — appears when Grok's local billing snapshot has a reading, or
@@ -104,7 +106,7 @@ shows that computer's agents.
 > or at login does not inherit the variables your shell's startup files export.
 > So once per launch The Agentic Apple asks your login shell (`$SHELL -l -i`)
 > for its `PATH` and for these variables only: `OPENROUTER_API_KEY`,
-> `OPENROUTER_AUTH_FILE`, `CODEX_HOME`, `CODEX_ACCESS_TOKEN`,
+> `OPENROUTER_AUTH_FILE`, `OPENROUTER_MANAGEMENT_KEY`, `CODEX_HOME`, `CODEX_ACCESS_TOKEN`,
 > `CLAUDE_CONFIG_DIR`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `MISE_DATA_DIR`,
 > `GROK_HOME` and `GROK_BOT_HOME`. Set in `~/.zshrc` (or your shell's
 > equivalent), they reach the menu bar app as well as `agentic-apple --text`.
@@ -164,6 +166,41 @@ What the meter shows:
 - **Key label:** reduced to a three-character tail (`key …2eb`); the rest of
   OpenRouter's label is never displayed or cached.
 - **Reset:** the key's own reset interval and date, monthly by default.
+
+#### Management key (account-wide)
+
+An inference key only sees itself. A **management key** sees the whole
+account: create one at
+[openrouter.ai/settings/management-keys](https://openrouter.ai/settings/management-keys),
+then paste it into **Settings → Advanced → OpenRouter** and click **Save**.
+Management keys cannot run completions; the app only uses one to read usage.
+
+- **Where it lives:** only in your login Keychain, as the generic password
+  `com.crueber.agentic-apple.openrouter-management-key` (account `default`).
+  It is not a defaults key, and it is never cached, logged or shown again; the
+  field reads `•••• saved` afterwards. `OPENROUTER_MANAGEMENT_KEY`, exported
+  by your login shell, works too and wins over the saved key.
+- **Save** stores it, checks it with one `GET /api/v1/keys` and says
+  *Verified · N keys* or why not (expired or invalid, not allowed, or — for
+  some personal accounts — unable to list keys). **Remove** deletes the
+  Keychain item and OpenRouter goes back to the per-key view.
+- **When it is set it takes over** — the inference key is not looked up at
+  all. The app reads `GET /api/v1/keys` (enabled, unexpired keys, 100 per page,
+  up to 10 pages) and `GET /api/v1/credits`, and shows:
+  - **All keys · this month** — the sum of every key's monthly spend, in
+    dollars until a previous month has been observed, then a meter against
+    that month (yellow when over), exactly like the per-key cycle;
+  - **Credits** — credits used against credits purchased, captioned
+    *$X left of $Y*;
+  - **one row per key with a spending limit** (up to six, fullest first),
+    titled with the key's name (or `Key …` and four characters — never the
+    full label), with its reset: daily at 00:00 UTC, weekly on Monday 00:00
+    UTC, monthly on the 1st 00:00 UTC.
+
+  The bar draws up to three of these: the month, Credits and the fullest key.
+- **If the management key fails** (expired, revoked, offline) the app says so
+  and keeps the last account-wide numbers; it does not quietly switch back to
+  the inference key. Fix or remove the key in Settings.
 
 ### OpenCode
 
@@ -317,7 +354,7 @@ collector normalises them into the same shape:
 
 | Agent | Source |
 | --- | --- |
-| OpenRouter | `OPENROUTER_API_KEY`, an auth file, OpenCode's `auth.json`, or `opencode auth export`; then `/api/v1/key` and `/api/v1/credits` |
+| OpenRouter | A management key (`OPENROUTER_MANAGEMENT_KEY`, else the Keychain item via `security`) → `/api/v1/keys` and `/api/v1/credits`; otherwise `OPENROUTER_API_KEY`, an auth file, OpenCode's `auth.json`, or `opencode auth export`; then `/api/v1/key` and `/api/v1/credits` |
 | OpenCode | `opencode api GET /api/experimental/usage/limits` (retries `--standalone`); activity from `opencode.db` via `sqlite3 -readonly` |
 | Grok | `~/.grok/logs/unified.jsonl`, `~/.grok/sessions/**/usage.json`, and the Grok Bot app cache |
 | Codex | `codex -s read-only -a on-request app-server` → `account/rateLimits/read` |
@@ -603,7 +640,7 @@ Open **Settings…** from the menu or the panel. It has five panes:
 | **General** | Menu bar style (Meters, Percentages, Marks only); refresh interval (1 minute to 1 hour); local-activity line; Launch at login |
 | **Agents** | All five agents with drag handles and show switches, whether each is detected on this Mac, **Reset Order** |
 | **Thresholds** | Warning and critical sliders, warning and critical colours (**Use Default** clears them), a live preview |
-| **Advanced** | Paths to `opencode` and `codex`; Grok home, Grok Bot cache, OpenCode auth file; **Reveal Cache in Finder**, **Clear Cache** |
+| **Advanced** | OpenRouter management key (**Save**, **Remove**, stored in the Keychain); paths to `opencode` and `codex`; Grok home, Grok Bot cache, OpenCode auth file; **Reveal Cache in Finder**, **Clear Cache** |
 | **About** | Version and links |
 
 The usual editing shortcuts (`⌘C`, `⌘V`, `⌘X`, `⌘A`, `⌘Z`) work in the
@@ -656,15 +693,31 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
 **System Settings → General → Login Items**; toggle it from the app, not with
 `defaults`.
 
+The **OpenRouter management key** is deliberately *not* a defaults key: it is
+stored only in the login Keychain (see [Management
+key](#management-key-account-wide)). Set it in Settings, or from a terminal
+with `security add-generic-password -U -s
+com.crueber.agentic-apple.openrouter-management-key -a default -w` (no value
+after `-w`, so `security` asks for it instead of taking it on the command line).
+
 ## Privacy and security
 
 - **Keys and tokens are never cached, logged, printed or passed on a command
-  line.** The OpenRouter key is used only in an HTTPS `Authorization` header to
-  `openrouter.ai`; Claude's OAuth token only in one to `api.anthropic.com`. Both
-  are re-read at request time and dropped afterwards. Error text from either
-  service is scrubbed of the key before display.
+  line.** The OpenRouter key (inference or management) is used only in an
+  HTTPS `Authorization` header to `openrouter.ai`; Claude's OAuth token only in
+  one to `api.anthropic.com`. Both are re-read at request time and dropped
+  afterwards. Error text from either service is scrubbed of the key before
+  display.
+- **The OpenRouter management key** is stored only in your login Keychain
+  (generic password `com.crueber.agentic-apple.openrouter-management-key`,
+  account `default`), written by the app with an access list that trusts the
+  app and `/usr/bin/security`. The collector reads it back with
+  `security find-generic-password … -w` (the key arrives on stdout, never on a
+  command line). It is never put in the defaults domain, the cache, logs,
+  errors or `--json`/`--text` output, and the field never shows it again.
 - **Network requests made by the app** go to three destinations:
-  1. OpenRouter's `/api/v1/key` and `/api/v1/credits`;
+  1. OpenRouter's `/api/v1/key` and `/api/v1/credits` — or, with a management
+     key, `/api/v1/keys` and `/api/v1/credits`;
   2. Anthropic's `/api/oauth/usage`;
   3. GitHub, for [updates](#updates): `api.github.com` for this repository's
      `releases/latest`, then the release's `.dmg` and `.dmg.sig` from
@@ -683,7 +736,8 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
   own credentials.
 - **No telemetry, no analytics.** The update check is the only request that is
   not about your agents' usage, and it identifies nothing about you.
-- **Local reads:** Claude Code's Keychain item and credential file, profile and
+- **Local reads:** the app's own OpenRouter management key Keychain item (when
+  saved); Claude Code's Keychain item and credential file, profile and
   transcripts; Codex's `auth.json` (mode and key presence only) and
   `config.toml`; `~/.grok` logs and session ledgers (never `auth.json`); the
   Grok Bot app cache; OpenCode's `auth.json`, `opencode.db` (counts only) and
@@ -713,7 +767,8 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
   `open` and a fixed `/bin/sh` helper only as a fallback. Arguments are passed directly; no outside
   text is ever put into a shell string.
 - The app writes nothing outside its cache directory and its defaults domain
-  (plus the optional login item) — except during an update: the download goes
+  (plus the optional login item, and the management key's Keychain item when
+  you save one) — except during an update: the download goes
   to a private temporary folder (removed afterwards), and a hidden staging
   copy and a backup of the old app are written beside its own bundle in the
   Applications folder; the new version removes them when it starts.
@@ -752,7 +807,7 @@ files, or set the matching path in **Settings → Advanced** and refresh.
 
 | Agent | Check |
 | --- | --- |
-| OpenRouter | `OPENROUTER_API_KEY` exported by your login shell, `opencode auth export` contains an `openrouter` credential, or set **OpenCode auth file** |
+| OpenRouter | `OPENROUTER_API_KEY` exported by your login shell, `opencode auth export` contains an `openrouter` credential, set **OpenCode auth file**, or save a management key in **Settings → Advanced** |
 | OpenCode | `opencode auth list`; `opencode api GET /api/experimental/usage/limits` answers with a `go` block |
 | Grok | `~/.grok/logs/unified.jsonl` exists; run `grok` once and open `/usage` |
 | Codex | `codex login`; an API-key sign-in intentionally has no plan limits; set **codex** in Settings if it lives somewhere unusual |
@@ -782,6 +837,16 @@ error, `available: false` in `--json`. Export `OPENROUTER_API_KEY` from your
 login shell, sign in to OpenRouter in OpenCode (`opencode auth login`), or
 point **OpenCode auth file** at a file with an `openrouter` entry. OpenCode 2
 users need no extra step: the app reads `opencode auth export`.
+
+**OpenRouter says "Management key expired or invalid".** OpenRouter answered
+401 for the saved management key. Create a new one at
+[openrouter.ai/settings/management-keys](https://openrouter.ai/settings/management-keys)
+and **Save** it in **Settings → Advanced**, or **Remove** the key to go back to
+the per-key view (the app does not fall back on its own). *"This management
+key can't list keys"* means OpenRouter returned 404 — some personal accounts
+need an organization for this; *"isn't allowed"* is a 403 for a key without
+that permission. If `OPENROUTER_MANAGEMENT_KEY` is set in your shell it wins
+over the saved key; unset it and relaunch.
 
 **Numbers look old.** Open the panel or press `R`; the footer says when they
 were read. After a failure the next try backs off up to 10 minutes, and a
@@ -816,7 +881,9 @@ defaults delete com.crueber.agentic-apple
 
 If you clicked **Always Allow** at the Keychain prompt, that permission belongs
 to `/usr/bin/security` on the Claude Code item; remove it in Keychain Access if
-you like. The app writes nothing else (an update's staging copy and backup are
+you like. A saved OpenRouter management key stays in your login Keychain until
+you click **Remove** in Settings first, or delete it with
+`security delete-generic-password -s com.crueber.agentic-apple.openrouter-management-key -a default`. The app writes nothing else (an update's staging copy and backup are
 removed by the new version when it starts).
 
 ## Development

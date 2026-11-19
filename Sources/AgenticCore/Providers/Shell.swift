@@ -368,7 +368,7 @@ public enum SearchPath {
 extension SearchPath {
     /// Variables a collector reads that users commonly set in their shell rc.
     public static let importedVariables: [String] = [
-        "OPENROUTER_API_KEY", "OPENROUTER_AUTH_FILE",
+        "OPENROUTER_API_KEY", "OPENROUTER_AUTH_FILE", "OPENROUTER_MANAGEMENT_KEY",
         "CODEX_HOME", "CODEX_ACCESS_TOKEN",
         "CLAUDE_CONFIG_DIR",
         "XDG_DATA_HOME", "XDG_CONFIG_HOME",
