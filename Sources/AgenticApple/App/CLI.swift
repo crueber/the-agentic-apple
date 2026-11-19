@@ -132,7 +132,7 @@ enum CLI {
             return nil
         }
         let fresh = box.get()
-        return (fresh, history.advanced(with: fresh.first { $0.id == .openrouter }?.money, now: now.timeIntervalSince1970 * 1000))
+        return (fresh, history.advanced(withFresh: fresh.first { $0.id == .openrouter }, now: now.timeIntervalSince1970 * 1000))
     }
 
     final class ResultBox: @unchecked Sendable {

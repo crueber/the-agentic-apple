@@ -237,7 +237,7 @@ final class Store: ObservableObject {
         let t = nowMs
         let merged = ProviderMerge.merge(previous: providers, fresh: fresh)
         providers = merged
-        history = history.advanced(with: merged.first { $0.id == .openrouter }?.money, now: t)
+        history = history.advanced(withFresh: fresh.first { $0.id == .openrouter }, now: t)
         // A global failure (for backoff) is every detected agent failing at once —
         // typically no network. One agent's error is shown on its own row instead.
         let available = merged.filter(\.available)

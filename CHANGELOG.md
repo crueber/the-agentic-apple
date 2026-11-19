@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.1 — 2026-11-19
+
+- **OpenRouter key with a daily limit** now reads that day's spend
+  (`usage_daily`) instead of the month's.
+- **OpenRouter history only moves on a clean read.** A failed or partial
+  OpenRouter read (whose numbers are filled in from the last good one) no
+  longer advances the month-by-month history, so last month's spend can't be
+  recorded against a new month.
+- **OpenRouter history is kept per scope.** Switching between one key and the
+  management key (account-wide), or to another key, starts a new history, so
+  one key's spend never becomes the account's average. Histories from 1.1.0
+  carry on under whichever mode reads next.
+
 ## 1.1.0 — 2026-11-19
 
 - **OpenRouter account-wide with a management key.** Paste an OpenRouter

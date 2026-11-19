@@ -242,7 +242,7 @@ public struct OpenRouterCollector: ProviderCollector {
     }
 
     /// `/api/v1/key` → Money (credits filled separately).
-    static func pickMoney(_ doc: [String: Any]) -> Money? {
+    public static func pickMoney(_ doc: [String: Any]) -> Money? {
         let src = source(doc)
         let eb = src["effective_budget"] as? [String: Any]
         var limit: Double?
@@ -254,7 +254,7 @@ public struct OpenRouterCollector: ProviderCollector {
         if spend == nil {
             let interval = intervalRaw.lowercased()
             if interval.contains("week") { spend = Sanitize.number(src["usage_weekly"]) }
-            else if interval.contains("day") { spend = Sanitize.number(src["usage_daily"]) }
+            else if interval.contains("day") || interval.contains("daily") { spend = Sanitize.number(src["usage_daily"]) }
             else { spend = Sanitize.number(src["usage_monthly"]) ?? Sanitize.number(src["usage"]) }
         }
         return Money(label: maskKeyLabel(src["label"]),
