@@ -166,7 +166,7 @@ extension PreviewFixture {
         list[4].limits = list[4].limits.map { var l = $0; l.stale = true; return l }
         s.providers = list
         s.visibility = [.grok: false]
-        s.order = "claude,opencode,openrouter,grok,codex"
+        s.order = "claude,opencode,openrouter,grok,codex,antigravity"
         return s
     }
 }

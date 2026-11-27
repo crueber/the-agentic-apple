@@ -10,6 +10,7 @@ let suites: [(String, (TestRun) async -> Void)] = [
     ("Grok", GrokTests.run),
     ("Codex", CodexTests.run),
     ("Claude", ClaudeTests.run),
+    ("Antigravity", AntigravityTests.run),
     ("Shell", ShellTests.run),
     ("Update", UpdateTests.run),
 ]

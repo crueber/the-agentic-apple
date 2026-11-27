@@ -1,7 +1,7 @@
 # The Agentic Apple
 
 One macOS menu bar item for every AI agent this Mac actually uses.
-**OpenRouter, OpenCode, Grok, Codex and Claude** each keep their own mark and
+**OpenRouter, OpenCode, Grok, Codex, Claude and Antigravity** each keep their own mark and
 their own limit meters; an agent you have no plan, key or usage for simply
 stays out of the bar. That is also the default bar order.
 
@@ -57,6 +57,7 @@ no Node, no Omarchy and no daemon of its own.
 | **Grok** | Grok mark + plan and Grok Bot meters | Weekly (or daily/monthly) plan limit, Grok Bot's separate weekly allowance, this week's local activity |
 | **Codex** | Codex mark + up to three meters | Session, weekly, code review, model-scoped allowances, a Business seat's spend cap |
 | **Claude** | Anthropic asterisk + up to three meters | Session (5-hour), weekly (7-day), model-scoped allowances (e.g. Fable weekly), today's activity |
+| **Antigravity** | Antigravity mark + up to three meters | Quota windows for Gemini (5-hour / weekly) and shared Claude & GPT pools, or per-pool model quotas (Gemini Pro, Gemini Flash, Claude & GPT) |
 
 Every agent gets:
 
@@ -78,7 +79,7 @@ meters, the default), **Percentages** (mark plus `5h 18% · 7d 62%`) and
 
 ## Automatic selection
 
-Every refresh runs all five sources concurrently and reports what each agent's
+Every refresh runs all six sources concurrently and reports what each agent's
 own source says. The bar only draws the agents that pass:
 
 - **OpenRouter** — appears when a key is found in `OPENROUTER_API_KEY`, an
@@ -97,6 +98,9 @@ own source says. The bar only draws the agents that pass:
 - **Claude** — appears when Claude Code has a plan or limits. An expired
   sign-in still appears, labelled *Sign-in expired*, with a hint to run
   `claude auth login`.
+- **Antigravity** — appears when a running Antigravity language server (CLI,
+  Desktop App or IDE) reports a plan or quota, or when the read-only OAuth
+  fallback returns a plan or quota.
 
 An agent with no plan, no key and no usage is left out rather than shown as an
 empty shell. Detection is per Mac: copy the app to another computer and it
@@ -108,7 +112,7 @@ shows that computer's agents.
 > for its `PATH` and for these variables only: `OPENROUTER_API_KEY`,
 > `OPENROUTER_AUTH_FILE`, `OPENROUTER_MANAGEMENT_KEY`, `CODEX_HOME`, `CODEX_ACCESS_TOKEN`,
 > `CLAUDE_CONFIG_DIR`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `MISE_DATA_DIR`,
-> `GROK_HOME` and `GROK_BOT_HOME`. Set in `~/.zshrc` (or your shell's
+> `GROK_HOME`, `GROK_BOT_HOME` and `ANTIGRAVITY_HOME`. Set in `~/.zshrc` (or your shell's
 > equivalent), they reach the menu bar app as well as `agentic-apple --text`.
 > Nothing else from the shell is kept. A value changed in your startup files
 > takes effect at the app's next launch. If the shell does not answer in time,
@@ -117,7 +121,7 @@ shows that computer's agents.
 
 ## Order, switches and dragging
 
-- **Default order:** OpenRouter, OpenCode, Grok, Codex, Claude. A saved
+- **Default order:** OpenRouter, OpenCode, Grok, Codex, Claude, Antigravity. A saved
   `providerOrder` wins; agents missing from it are appended in the default
   order, so a newly supported agent appears without a settings edit.
 - **Drag to reorder:** grab an agent section by its `⠿` grip and drop it where
@@ -125,10 +129,10 @@ shows that computer's agents.
   point, and the menu bar follows immediately. The **Agents** settings pane
   offers the same list with drag handles and a **Reset Order** button.
 - **Show switches:** every section has a switch, on by default. Turning one off
-  keeps the section — and its limits — in the panel, marked *Hidden from bar*,
-  so you can read it or switch it back on; only its mark and meters leave the
-  menu bar. The panel header counts hidden agents, and an all-hidden bar shows
-  a dimmed robot glyph whose tooltip says so.
+  hides the agent from both the menu bar and the dropdown panel so there is room
+  for the rest; turn it back on in **Settings → Agents**. The panel header
+  counts hidden agents, and an all-hidden bar shows a dimmed robot glyph whose
+  tooltip points to Settings.
 - The panel, the Settings window and `defaults` all write the same keys
   (`providerOrder`, `show<Agent>`), so they never drift.
 
@@ -374,6 +378,35 @@ subagent tasks or local slash commands such as `/clear`), and each reply's
 tokens are counted once. The scan is incremental: each refresh reads only the
 bytes appended since the last one.
 
+### Antigravity
+
+Antigravity usage works across the Antigravity CLI (`antigravity` / `agy`),
+Antigravity Desktop App (2.0) and Antigravity IDE:
+
+1. **Local language server (preferred, no Keychain prompt):** when an
+   Antigravity `language_server_macos*` process is running, the app locates its
+   loopback port (`127.0.0.1`) with `ps` and `lsof` and queries its local
+   Connect-RPC service (`GetUserStatus`, `RetrieveUserQuotaSummary`, falling
+   back to `GetCommandModelConfigs`).
+2. **Read-only OAuth fallback:** when Antigravity is installed on this Mac
+   (`~/.gemini/antigravity-cli`, `~/.gemini/antigravity`,
+   `~/Library/Application Support/Antigravity`, `Antigravity.app`, or
+   `antigravity` / `agy` on `PATH`) and no local server is running, the app
+   reads the macOS Keychain item `gemini` / `antigravity` (through
+   `/usr/bin/security … -w`) or `oauth_creds.json` under the Antigravity home
+   (`antigravityHome` setting or `ANTIGRAVITY_HOME`), and queries
+   `https://daily-cloudcode-pa.googleapis.com` (`v1internal:loadCodeAssist`,
+   `v1internal:retrieveUserQuotaSummary`, `v1internal:fetchAvailableModels`,
+   `v1internal:retrieveUserQuota`). Tokens are read-only and never refreshed; a
+   lapsed access token shows *Limits paused* (or *Sign-in expired*) and keeps the
+   last numbers marked stale until Antigravity refreshes its own sign-in.
+
+When `RetrieveUserQuotaSummary` returns grouped windows, the panel shows each
+group's 5-hour and weekly buckets (e.g. **Gemini (5-hour)**, **Gemini Weekly**,
+**Claude & GPT (5-hour)**). Otherwise, per-model quotas are grouped into shared
+pools (**Gemini Pro**, **Gemini Flash**, **Claude & GPT**) showing the highest
+used percentage in each pool.
+
 ## How it fetches
 
 One collector feeds the whole app. Each provider keeps its own source, and the
@@ -386,6 +419,7 @@ collector normalises them into the same shape:
 | Grok | `~/.grok/logs/unified.jsonl`, `~/.grok/sessions/**/usage.json`, and the Grok Bot app cache |
 | Codex | `codex -s read-only -a on-request app-server` → `account/rateLimits/read` |
 | Claude | Keychain or `~/.claude/.credentials.json`, then `api.anthropic.com/api/oauth/usage`; activity from `~/.claude/projects` |
+| Antigravity | Running local `language_server_macos*` Connect-RPC on `127.0.0.1` (`GetUserStatus` / `RetrieveUserQuotaSummary`), else read-only Keychain `gemini` / `antigravity` or `oauth_creds.json` → `daily-cloudcode-pa.googleapis.com` |
 
 Schedule and caching:
 
@@ -486,7 +520,8 @@ itself, since that path would be gone after a restart. Disabling the app under
   - OpenCode signed in to a workspace with a Go plan (`opencode auth login`);
   - the Grok CLI with an existing login and at least one session;
   - the Codex CLI signed in to a ChatGPT plan (`codex login`);
-  - Claude Code signed in (`claude auth login`).
+  - Claude Code signed in (`claude auth login`);
+  - Google Antigravity (CLI, Desktop App or IDE) signed in.
 
 No administrator rights, no helper service, no daemon of its own.
 
@@ -557,10 +592,11 @@ OpenCode: 5h 24% · 7d 41% · 1m 9%
 Grok: 7d 41% · bot 42.7%
 Codex: 5h 12% · 7d 34% · rev 5%
 Claude: 5h 18% · 7d 62% · fable 7%
+Antigravity: gem 5h 28% · gem 7d 52% · 3p 5h 15%
 ```
 
 (Invented figures, from `agentic-apple --fixture --text`.) `--json` lists all
-five agents with `available` and `shown`, so an agent missing from the bar
+six agents with `available` and `shown`, so an agent missing from the bar
 shows its `status`, `hint` and `error` there. Neither mode ever prints a key or
 token. If `agentic-apple` is not found, add `~/.local/bin` to your `PATH` or
 run the app's executable directly:
@@ -665,9 +701,9 @@ Open **Settings…** from the menu or the panel. It has five panes:
 | Pane | What it holds |
 | --- | --- |
 | **General** | Menu bar style (Meters, Percentages, Marks only); refresh interval (1 minute to 1 hour); local-activity line; Launch at login |
-| **Agents** | All five agents with drag handles and show switches, whether each is detected on this Mac, **Reset Order** |
+| **Agents** | All six agents with drag handles and show switches, whether each is detected on this Mac, **Reset Order** |
 | **Thresholds** | Warning and critical sliders, warning and critical colours (**Use Default** clears them), a live preview |
-| **Advanced** | OpenRouter management key (**Save**, **Remove**, stored in the Keychain); paths to `opencode` and `codex`; Grok home, Grok Bot cache, OpenCode auth file; **Reveal Cache in Finder**, **Clear Cache** |
+| **Advanced** | OpenRouter management key (**Save**, **Remove**, stored in the Keychain); paths to `opencode` and `codex`; Grok home, Grok Bot cache, Antigravity home, OpenCode auth file; **Reveal Cache in Finder**, **Clear Cache** |
 | **About** | Version and links |
 
 The usual editing shortcuts (`⌘C`, `⌘V`, `⌘X`, `⌘A`, `⌘Z`) work in the
@@ -702,7 +738,8 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
 | `showGrok` | bool | `true` | Show Grok in the menu bar |
 | `showCodex` | bool | `true` | Show Codex in the menu bar |
 | `showClaude` | bool | `true` | Show Claude in the menu bar |
-| `providerOrder` | string | `""` | Comma-separated ids (`openrouter,opencode,grok,codex,claude`); missing ids follow in the default order; empty uses the default |
+| `showAntigravity` | bool | `true` | Show Antigravity in the menu bar |
+| `providerOrder` | string | `""` | Comma-separated ids (`openrouter,opencode,grok,codex,claude,antigravity`); missing ids follow in the default order; empty uses the default |
 | `refreshIntervalSec` | int | `300` | Automatic refresh, clamped to 60–3600 |
 | `warnPercent` | int | `70` | Warning threshold, 0–100 |
 | `criticalPercent` | int | `90` | Critical threshold, 0–100 |
@@ -713,6 +750,7 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
 | `codexCommand` | string | `""` | Path to `codex`; empty searches the login `PATH`, mise and its installs |
 | `grokHome` | string | `""` | Grok home; empty uses `$GROK_HOME` or `~/.grok` |
 | `botHome` | string | `""` | Grok Bot cache directory; empty tries the locations listed under [Grok](#grok) |
+| `antigravityHome` | string | `""` | Antigravity home directory; empty uses `$ANTIGRAVITY_HOME`, `~/.gemini/antigravity-cli`, `~/.gemini/antigravity` and `~/Library/Application Support/Antigravity` |
 | `authFile` | string | `""` | An OpenCode 1 `auth.json` holding the OpenRouter key; when set, only this file is read |
 | `openrouterAverageMonths` | int | `2` | With an OpenRouter management key: the usage meter compares this month with the average of the last N full months, 1–12; `0` turns the meter off (no meter, no analytics request). The Settings toggle **Usage meter** is simply this value > 0 |
 | `openrouterKeyRows` | int | `3` | With an OpenRouter management key: how many of the keys used most this month the panel lists, 0–12 (0 = none); the bar never shows them |
@@ -734,9 +772,11 @@ after `-w`, so `security` asks for it instead of taking it on the command line).
 - **Keys and tokens are never cached, logged, printed or passed on a command
   line.** The OpenRouter key (inference or management) is used only in an
   HTTPS `Authorization` header to `openrouter.ai`; Claude's OAuth token only in
-  one to `api.anthropic.com`. Both are re-read at request time and dropped
-  afterwards. Error text from either service is scrubbed of the key before
-  display.
+  one to `api.anthropic.com`; Antigravity's OAuth token (fallback only) only in
+  one to `daily-cloudcode-pa.googleapis.com`; Antigravity's ephemeral local CSRF
+  nonce only in `X-Codeium-Csrf-Token` to `127.0.0.1`. They are re-read at
+  request time and dropped afterwards. Error text from OpenRouter is scrubbed of
+  the key before display.
 - **The OpenRouter management key** is stored only in your login Keychain
   (generic password `com.crueber.agentic-apple.openrouter-management-key`,
   account `default`), created by `/usr/bin/security -i` with the key written
@@ -744,14 +784,20 @@ after `-w`, so `security` asks for it instead of taking it on the command line).
   launch with `security find-generic-password … -w` (the key arrives on
   stdout) and keeps it in memory. It is never put in the defaults domain, the cache, logs,
   errors or `--json`/`--text` output, and the field never shows it again.
-- **Network requests made by the app** go to three destinations:
+- **Network requests made by the app** go to four destinations (plus local
+  loopback for a running Antigravity language server):
   1. OpenRouter's `/api/v1/key` and `/api/v1/credits` — or, with a management
      key, `/api/v1/keys` and `/api/v1/credits`, plus at most once a month
      `/api/v1/analytics/meta` and a `POST` to `/api/v1/analytics/query` (a small
      JSON body: the cost metric and the previous N months; none when the usage
      meter is off);
   2. Anthropic's `/api/oauth/usage`;
-  3. GitHub, for [updates](#updates): `api.github.com` for this repository's
+  3. Google Antigravity's local loopback Connect-RPC (`127.0.0.1` only, when a
+     language server is running), or `daily-cloudcode-pa.googleapis.com`
+     (`v1internal:loadCodeAssist`, `v1internal:retrieveUserQuotaSummary`,
+     `v1internal:fetchAvailableModels`, `v1internal:retrieveUserQuota`) as the
+     read-only OAuth fallback when installed and not running;
+  4. GitHub, for [updates](#updates): `api.github.com` for this repository's
      `releases/latest`, then the release's `.dmg` and `.dmg.sig` from
      `github.com`, which redirects to `release-assets.githubusercontent.com`
      (only `github.com` and `*.githubusercontent.com` are accepted).
@@ -770,7 +816,9 @@ after `-w`, so `security` asks for it instead of taking it on the command line).
   not about your agents' usage, and it identifies nothing about you.
 - **Local reads:** the app's own OpenRouter management key Keychain item (when
   saved); Claude Code's Keychain item and credential file, profile and
-  transcripts; Codex's `auth.json` (mode and key presence only) and
+  transcripts; Antigravity's running local language server (or, when not running
+  and installed, its `gemini` / `antigravity` Keychain item or
+  `oauth_creds.json`); Codex's `auth.json` (mode and key presence only) and
   `config.toml`; `~/.grok` logs and session ledgers (never `auth.json`); the
   Grok Bot app cache; OpenCode's `auth.json`, `opencode.db` (counts only) and
   local API.
@@ -790,8 +838,9 @@ after `-w`, so `security` asks for it instead of taking it on the command line).
 - **Untrusted text:** every string from a file, a command or the network is
   bounded and neutralised before display; percentages are clamped to 0–100;
   command output, files and responses are size- and time-limited.
-- **Executables run:** `/usr/bin/security`, `/usr/bin/sqlite3`, `opencode`,
-  `codex`, `mise` (only `mise which codex`, offline) and, once per launch, your
+- **Executables run:** `/usr/bin/security`, `/usr/bin/sqlite3`, `/bin/ps`,
+  `/usr/sbin/lsof` (only when a running Antigravity language server is found),
+  `opencode`, `codex`, `mise` (only `mise which codex`, offline) and, once per launch, your
   login shell to read `PATH` and the allowlisted variables. During an update:
   `hdiutil` (attach and detach the downloaded image, read-only), `codesign`
   (verify the new app), `ditto` (copy it), the new app's own
@@ -824,7 +873,7 @@ See [`SECURITY.md`](SECURITY.md) for reporting and the full data-flow notes.
 ## Troubleshooting
 
 **No agents in the menu bar.** Run `agentic-apple --text`. If it prints
-`no agents`, either none of the five sources is configured on this Mac or every
+`no agents`, either none of the six sources is configured on this Mac or every
 agent is switched off; `agentic-apple --json` shows each agent's `available`,
 `shown`, `status`, `hint` and `error`. The panel's empty state names the
 sign-in path for each agent.
@@ -844,6 +893,7 @@ files, or set the matching path in **Settings → Advanced** and refresh.
 | Grok | `~/.grok/logs/unified.jsonl` exists; run `grok` once and open `/usage` |
 | Codex | `codex login`; an API-key sign-in intentionally has no plan limits; set **codex** in Settings if it lives somewhere unusual |
 | Claude | `claude auth login`; allow `security` at the Keychain prompt |
+| Antigravity | Open Antigravity (or start `antigravity`); for background OAuth fallback while closed, allow `security` on the `gemini` / `antigravity` Keychain item or set **Antigravity home** in Settings |
 
 **Claude says "Sign-in expired".** Run `claude auth login` (or start Claude
 Code) and refresh. **"Limits paused"** only needs Claude Code to start once.
@@ -928,7 +978,7 @@ the app.
 
 ```bash
 scripts/test.sh                 # offline self-test (every suite)
-scripts/test.sh Claude          # one suite: Logic, Shell, OpenRouter, OpenCode, Grok, Codex, Claude
+scripts/test.sh Claude          # one suite: Logic, Shell, OpenRouter, OpenCode, Grok, Codex, Claude, Antigravity
 scripts/build-app.sh            # dist/The Agentic Apple.app, ad-hoc signed
 scripts/install.sh --no-open    # build and install to ~/Applications
 scripts/make-dmg.sh             # dist/The-Agentic-Apple-<version>.dmg
@@ -1036,7 +1086,8 @@ If The Agentic Apple saves you a surprise rate limit, consider
 
 [MIT](LICENSE). Claude and Anthropic are trademarks of Anthropic; Codex and
 OpenAI are trademarks of OpenAI; Grok and xAI are trademarks of their
-respective owner; OpenCode and OpenRouter are trademarks of their respective
+respective owner; Antigravity and Google are trademarks of Google LLC;
+OpenCode and OpenRouter are trademarks of their respective
 owners; Apple and macOS are trademarks of Apple Inc. The marks in this
 repository are traced monochrome geometry used only to identify the service
 each meter belongs to. This project is not affiliated with any of them.

@@ -120,6 +120,7 @@ a manual check only reports the new version.
 | Grok | `~/.grok/logs/unified.jsonl` (the billing snapshot line); `~/.grok/sessions/**/usage.json` (numeric ledgers); Grok Bot's small cached `*.blob` JSON (≤ 64 KB) | `~/.grok/auth.json`, prompts, responses, Grok Bot's session or cookies |
 | Codex | `~/.codex/auth.json`, parsed only for `auth_mode` and whether an API key field is non-empty; `cli_auth_credentials_store` in `~/.codex/config.toml`; the app-server's rate-limit answer | any token value |
 | Claude | the Keychain item `Claude Code-credentials` (via `/usr/bin/security`) or `~/.claude/.credentials.json`; the tier in `~/.claude.json`; today's transcripts under `~/.claude/projects/**/*.jsonl` | — (transcripts are parsed in memory; only counts and id hashes are kept) |
+| Antigravity | running Antigravity `language_server_macos*` loopback Connect-RPC (`127.0.0.1`, `GetUserStatus` / `RetrieveUserQuotaSummary` / `GetCommandModelConfigs`); when not running and Antigravity is installed, the Keychain item `gemini` / `antigravity` (via `/usr/bin/security`) or `oauth_creds.json` under `~/.gemini/antigravity*` | conversation files, prompts, responses, refresh token values |
 
 No prompt text, response text or session content is stored or displayed.
 
@@ -136,8 +137,10 @@ No prompt text, response text or session content is stored or displayed.
   credential to the app over a pipe.
 - **Header only.** The OpenRouter key is sent only in an HTTPS
   `Authorization` header to `openrouter.ai`; Claude's access token only in one
-  to `api.anthropic.com`. Error text from OpenRouter is scrubbed of the key
-  before it is displayed.
+  to `api.anthropic.com`; Antigravity's OAuth access token (fallback only) only
+  in one to `daily-cloudcode-pa.googleapis.com`; Antigravity's ephemeral local
+  CSRF nonce only in `X-Codeium-Csrf-Token` to `127.0.0.1`. Error text from
+  OpenRouter is scrubbed of the key before it is displayed.
 - **OpenRouter management key.** Optional; pasted into **Settings → Advanced**
   (a secure field) or exported as `OPENROUTER_MANAGEMENT_KEY`. **Save** trims
   it, accepts only letters, digits and `-_.~+/=:` (so it is always one token
@@ -175,7 +178,7 @@ No prompt text, response text or session content is stored or displayed.
 
 ## Network access
 
-The app makes requests of its own to three destinations:
+The app makes requests of its own to four destinations (plus local loopback):
 
 - OpenRouter:
   - `GET https://openrouter.ai/api/v1/key`
@@ -191,6 +194,11 @@ The app makes requests of its own to three destinations:
     (`{"metrics":["<cost metric>"],"granularity":"month","time_range":{…}}`,
     under 16 KB). POSTs follow the same rules as GETs.
 - Anthropic: `GET https://api.anthropic.com/api/oauth/usage`
+- Google Antigravity:
+  - primary (when running): loopback Connect-RPC (`127.0.0.1:<port>` only;
+    self-signed TLS trusted strictly for `127.0.0.1`, 5 s timeout, 1 MB cap) to
+    `/exa.language_server_pb.LanguageServerService/{GetUserStatus,RetrieveUserQuotaSummary,GetCommandModelConfigs}`
+  - fallback (when not running and installed): `POST https://daily-cloudcode-pa.googleapis.com/v1internal:{loadCodeAssist,retrieveUserQuotaSummary,fetchAvailableModels,retrieveUserQuota}`
 - GitHub, for updates (about 2 minutes after launch, then every 6 hours, only
   when `autoUpdate` is on; or when you choose **Check for Updates…**):
   - `GET https://api.github.com/repos/crueber/the-agentic-apple/releases/latest`
@@ -215,6 +223,9 @@ nothing about you or your agents.
 | --- | --- | --- |
 | your login shell (`$SHELL`, else `/bin/zsh`) | `-l -i -c` with a fixed script printing `PATH` and an allowlist of variables | once per launch, in its own session with no terminal, bounded by a timeout |
 | `/usr/bin/security` | `find-generic-password -s "Claude Code-credentials" -w` | each refresh |
+| `/usr/bin/security` | `find-generic-password -s gemini -a antigravity -w` | fallback when Antigravity is installed but no local language server answered |
+| `/bin/ps` | `-ww -eo pid=,args=` | each refresh, to locate a running Antigravity `language_server_macos*` |
+| `/usr/sbin/lsof` | `-nP -iTCP -sTCP:LISTEN -a -p <pid>` | each refresh, only when a running Antigravity language server is found |
 | `/usr/bin/security` | `find-generic-password -s com.crueber.agentic-apple.openrouter-management-key -a default -w` | once per launch, unless `OPENROUTER_MANAGEMENT_KEY` is set |
 | `/usr/bin/security` | `find-generic-password -s … -a default` (no `-w`) | when Settings shows the key's status |
 | `/usr/bin/security` | `-i`, with `delete-generic-password …` and `add-generic-password -U … -w <key>` on stdin | when you click **Save** |

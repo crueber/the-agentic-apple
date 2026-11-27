@@ -26,7 +26,7 @@ public enum Summary {
     static let dot = " \u{00B7} "
 
     public static let noAgents = "No AI agents found"
-    public static let allHiddenTooltip = "All agents are hidden from the bar\nOpen The Agentic Apple to show one"
+    public static let allHiddenTooltip = "All agents are hidden\nOpen Settings to show one"
 
     public static func compactText(_ provider: Provider?, history: CycleHistory = .empty,
                                    warn: Double = Meters.defaultWarn, critical: Double = Meters.defaultCritical) -> String {

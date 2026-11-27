@@ -56,7 +56,11 @@ struct PanelView: View {
         VStack(spacing: 0) {
             let list = state.panelProviders
             if list.isEmpty {
-                PanelEmptyState(state: state)
+                if state.availableProviders.isEmpty {
+                    PanelEmptyState(state: state)
+                } else {
+                    PanelAllHiddenState(count: state.hiddenCount, openSettings: actions.openSettings)
+                }
             }
             ForEach(Array(list.enumerated()), id: \.element.id) { index, provider in
                 if index > 0 {
@@ -241,6 +245,7 @@ struct PanelEmptyState: View {
         (.grok, "Run `grok` once and open `/usage`"),
         (.codex, "`codex login` with a ChatGPT plan"),
         (.claude, "`claude auth login`"),
+        (.antigravity, "Open Antigravity, or sign in with `antigravity`"),
     ]
 
     var body: some View {
@@ -266,6 +271,29 @@ struct PanelEmptyState: View {
                     }
                 }
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, PanelMetrics.hPad)
+        .padding(.vertical, 14)
+    }
+}
+
+struct PanelAllHiddenState: View {
+    let count: Int
+    let openSettings: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("All agents hidden")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("\(count) detected \(count == 1 ? "agent is" : "agents are") switched off. Re-enable agents in Settings › Agents.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button("Open Settings…", action: openSettings)
+                .controlSize(.small)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, PanelMetrics.hPad)

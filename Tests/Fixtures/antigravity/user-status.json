@@ -1,0 +1,66 @@
+{
+  "userStatus": {
+    "userTier": {
+      "id": "g1-pro-tier",
+      "name": "Google AI Pro"
+    },
+    "planStatus": {
+      "planInfo": {
+        "teamsTier": "TEAMS_TIER_PRO",
+        "planName": "Pro"
+      }
+    },
+    "cascadeModelConfigData": {
+      "clientModelConfigs": [
+        {
+          "label": "Gemini 3 Pro (High)",
+          "modelOrAlias": { "model": "gemini-3-pro-high" },
+          "quotaInfo": {
+            "remainingFraction": 0.72,
+            "resetTime": "2026-11-17T15:00:00Z"
+          }
+        },
+        {
+          "label": "Gemini 3 Pro (Low)",
+          "modelOrAlias": { "model": "gemini-3-pro-low" },
+          "quotaInfo": {
+            "remainingFraction": 0.80,
+            "resetTime": "2026-11-17T16:00:00Z"
+          }
+        },
+        {
+          "label": "Gemini 3 Flash",
+          "modelOrAlias": { "model": "gemini-3-flash" },
+          "quotaInfo": {
+            "remainingFraction": 0.91,
+            "resetTime": "2026-11-17T18:00:00Z"
+          }
+        },
+        {
+          "label": "Claude Sonnet 4.6 (Thinking)",
+          "modelOrAlias": { "model": "claude-sonnet-4-6" },
+          "quotaInfo": {
+            "remainingFraction": 0.45,
+            "resetTime": "2026-11-17T14:30:00Z"
+          }
+        },
+        {
+          "label": "GPT-OSS 120B",
+          "modelOrAlias": { "model": "gpt-oss-120b" },
+          "quotaInfo": {
+            "remainingFraction": 0.60,
+            "resetTime": "2026-11-17T14:30:00Z"
+          }
+        },
+        {
+          "label": "Tab Autocomplete",
+          "modelOrAlias": { "model": "tab_autocomplete" },
+          "quotaInfo": {
+            "remainingFraction": 0.50,
+            "resetTime": "2026-11-17T19:00:00Z"
+          }
+        }
+      ]
+    }
+  }
+}

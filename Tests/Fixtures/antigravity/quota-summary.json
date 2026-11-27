@@ -1,0 +1,46 @@
+{
+  "response": {
+    "groups": [
+      {
+        "modelGroup": "gemini-models",
+        "displayName": "Gemini Models",
+        "buckets": [
+          {
+            "id": "gemini-5h",
+            "displayName": "5-hour limit",
+            "window": "5h",
+            "remainingFraction": 0.72,
+            "resetTime": "2026-11-17T15:00:00Z"
+          },
+          {
+            "id": "gemini-weekly",
+            "displayName": "Weekly limit",
+            "window": "7d",
+            "remainingFraction": 0.48,
+            "resetTime": "2026-11-21T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "modelGroup": "3p-models",
+        "displayName": "Claude & GPT (shared)",
+        "buckets": [
+          {
+            "id": "3p-5h",
+            "displayName": "5-hour limit",
+            "window": "5h",
+            "remainingFraction": 0.85,
+            "resetTime": "2026-11-17T15:45:00Z"
+          },
+          {
+            "id": "3p-weekly",
+            "displayName": "Weekly limit",
+            "window": "7d",
+            "remainingFraction": 0.0,
+            "resetTime": "2026-11-21T00:00:00Z"
+          }
+        ]
+      }
+    ]
+  }
+}

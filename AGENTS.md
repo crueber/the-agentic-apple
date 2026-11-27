@@ -2,7 +2,7 @@
 
 The Agentic Apple — a native macOS menu bar app (Swift, AppKit + SwiftUI) that
 shows limit meters for the AI agents a Mac actually uses: OpenRouter, OpenCode,
-Grok, Codex and Claude. It is a port of the Omarchy plugin
+Grok, Codex, Claude and Antigravity. It is a port of the Omarchy plugin
 [Agent Meters](https://github.com/crueber/omarchy-plugin-agent-meters); when in
 doubt about behaviour or wording, the reference plugin's `Model.js`,
 `collect.js` and `Panel.qml` are the specification. Claude and Codex are ported
@@ -35,7 +35,7 @@ from Omarchy's `omarchy-agent-usage-claude` / `omarchy-agent-usage-codex`
     `State` (meter state, windows, OpenRouter window), `Ordering`,
     `OpenRouterHistory` (cycle baseline), `Merge`, `Schedule`, `Format`,
     `Summary` (bar text, tooltip, captions), `Cache`.
-  - `Providers/` — one collector per agent, plus `Collector` (runs all five
+  - `Providers/` — one collector per agent, plus `Collector` (runs all six
     concurrently), `Shell` (process runner, `SearchPath`), `HTTP`, `Sanitize`.
     Each provider file's header documents its sources, paths and endpoints.
     `OpenRouterAccount` is OpenRouter's management-key (account-wide) mode.
@@ -117,6 +117,7 @@ bar shows only `Meters.barDollarsText` (credits left, else monthly spend).
 | Grok | last `billing: fetched credits config` line of `~/.grok/logs/unified.jsonl`; `sessions/*/*/usage.json`; Grok Bot `*.blob` under `~/Library/Application Support/Grok Bot/sand-client-persistence`, then `~/.config/Grok Bot/…` (Grok Bot alone is enough: no CLI snapshot → Bot meter only, tier from `grokPlanLabel`) |
 | Codex | `codex -s read-only -a on-request app-server`: `initialize` → `initialized` → `account/rateLimits/read` (`rateLimitsByLimitId`, else legacy `rateLimits`), `account/read` only for the plan |
 | Claude | Keychain `Claude Code-credentials` via `/usr/bin/security … -w`, and `~/.claude/.credentials.json` (later `expiresAt` wins); `GET https://api.anthropic.com/api/oauth/usage` with `anthropic-beta: oauth-2025-04-20`; activity from `~/.claude/projects/**/*.jsonl` |
+| Antigravity | Running `language_server_macos*` discovered via `/bin/ps` + `/usr/sbin/lsof` → loopback `127.0.0.1` Connect-RPC `GetUserStatus`, `RetrieveUserQuotaSummary`, `GetCommandModelConfigs`; when not running and installed, read-only Keychain `gemini`/`antigravity` via `/usr/bin/security … -w` (unwrapping `go-keyring-base64:` and hex blobs) or `oauth_creds.json` under `~/.gemini/antigravity*` (`ANTIGRAVITY_HOME` / `antigravityHome`) → `POST https://daily-cloudcode-pa.googleapis.com/v1internal:{loadCodeAssist,retrieveUserQuotaSummary,fetchAvailableModels,retrieveUserQuota}` |
 
 Claude windows: `five_hour` → `session`, `seven_day` → `weekly`, the `limits`
 array's model-scoped entries and legacy non-null `seven_day_<model>` buckets →
@@ -170,15 +171,16 @@ Codex windows: general buckets map to `session` / `weekly` / `review` /
    only when observed within six hours of its end. The per-key view uses
    `previous` only and ignores `openrouterAverageMonths`.
 8. **Order and visibility.** `providerOrder` is a comma-separated id string;
-   missing ids follow in `ProviderID.defaultOrder`. `DisplayState.panelProviders`
-   is every available agent in that order (so a hidden one can be switched back
-   on); `barProviders` filters by `show<Agent>`. Drops go through
+   missing ids follow in `ProviderID.defaultOrder`. `DisplayState.availableProviders`
+   is every available agent in that order; `barProviders` and `panelProviders`
+   both filter by `show<Agent>` (hidden agents leave the dropdown panel too and
+   are re-enabled in **Settings → Agents**). Drops go through
    `Ordering.reorderInsert`, which keeps hidden agents in place.
 9. **Settings keys match the reference plugin** (`barStyle`, `show<Agent>`,
    `providerOrder`, `refreshIntervalSec`, `warnPercent`, `criticalPercent`,
    `warningColor`, `criticalColor`, `showActivity`, `opencodeCommand`,
    `codexCommand`, `grokHome`, `botHome`, `authFile`). Do not rename them.
-   `autoUpdate` (bool, default true), `openrouterKeyRows` (int 0–12,
+   `autoUpdate` (bool, default true), `antigravityHome` (string, default `""`), `openrouterKeyRows` (int 0–12,
    default 3) and `openrouterAverageMonths` (int 0–12, default 2; 0 = usage
    meter off — the only source of truth, the Settings toggle is `> 0`) are
    this app's own additions. Changing `openrouterAverageMonths` triggers a

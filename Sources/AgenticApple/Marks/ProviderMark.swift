@@ -19,7 +19,7 @@ public struct ProviderMark: View {
         case .openrouter: return (size * MarkPaths.openRouter.aspect).rounded()
         case .opencode: return (size * 0.8).rounded()
         case .claude: return (size * MarkPaths.claude.aspect).rounded()
-        case .grok, .codex: return size.rounded()
+        case .grok, .codex, .antigravity: return size.rounded()
         }
     }
 
@@ -31,6 +31,7 @@ public struct ProviderMark: View {
             case .grok: vector(MarkPaths.grok, evenOdd: false)
             case .codex: vector(MarkPaths.codex, evenOdd: true)
             case .claude: vector(MarkPaths.claude, evenOdd: false)
+            case .antigravity: vector(MarkPaths.antigravity, evenOdd: false)
             }
         }
         .frame(width: Self.width(for: id, size: size), height: size.rounded())

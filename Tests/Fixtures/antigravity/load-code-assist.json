@@ -1,0 +1,9 @@
+{
+  "currentTier": {
+    "id": "g1-ultra-tier",
+    "name": "Google AI Ultra"
+  },
+  "cloudaicompanionProject": {
+    "id": "demo-project-123"
+  }
+}

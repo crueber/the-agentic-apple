@@ -56,7 +56,18 @@ enum PreviewFixture {
                               ],
                               activity: Activity(period: "today", prompts: 3, tokens: 210_000),
                               readAt: now)
-        return [openrouter, opencode, grok, codex, claude]
+
+        let antigravity = Provider(id: .antigravity, available: true, tier: "Google AI Pro", source: "fixture",
+                                   limits: [
+                                    Limit(key: "gemini-session", label: "Gemini (5-hour)", short: "gem 5h", percent: 28,
+                                          resetsAt: now + 3 * hour + 30 * minute),
+                                    Limit(key: "gemini-weekly", label: "Gemini Weekly", short: "gem 7d", percent: 52,
+                                          resetsAt: now + 4 * day),
+                                    Limit(key: "claude-gpt-session", label: "Claude & GPT (5-hour)", short: "3p 5h", percent: 15,
+                                          resetsAt: now + 4 * hour + 15 * minute),
+                                   ],
+                                   readAt: now)
+        return [openrouter, opencode, grok, codex, claude, antigravity]
     }
 
     static var state: DisplayState {

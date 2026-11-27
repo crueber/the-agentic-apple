@@ -382,6 +382,7 @@ extension SearchPath {
         "XDG_DATA_HOME", "XDG_CONFIG_HOME",
         "MISE_DATA_DIR",
         "GROK_HOME", "GROK_BOT_HOME",
+        "ANTIGRAVITY_HOME",
     ]
 
     static let beginMarker = "__AGENTIC_ENV_BEGIN__"

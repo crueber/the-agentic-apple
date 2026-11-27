@@ -153,10 +153,10 @@ private struct AgentsPane: View {
                 }
                 .frame(minHeight: 230)
             } header: {
-                Text("Order and menu bar")
+                Text("Order and visibility")
             } footer: {
                 HStack {
-                    Text("Drag to reorder. Agents with no plan, key or usage on this Mac stay out of the bar automatically.")
+                    Text("Drag to reorder. Turning an agent off hides it from both the menu bar and the panel; switch it back on here. Agents with no plan, key or usage stay out automatically.")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("Reset Order") { settings.providerOrder = "" }
@@ -294,6 +294,7 @@ private struct AdvancedPane: View {
             Section("Locations") {
                 PathField(title: "Grok home", text: $settings.grokHome, placeholder: "~/.grok", directory: true)
                 PathField(title: "Grok Bot cache", text: $settings.botHome, placeholder: "Grok Bot's app cache", directory: true)
+                PathField(title: "Antigravity home", text: $settings.antigravityHome, placeholder: "~/.gemini/antigravity-cli", directory: true)
                 PathField(title: "OpenCode auth file", text: $settings.authFile, placeholder: "for the OpenRouter key (OpenCode 1)")
             }
             Section {
@@ -506,7 +507,7 @@ private struct AboutPane: View {
             AgentMetersGlyph(size: 54)
             Text(AppInfo.name).font(.title2.weight(.semibold))
             Text("Version \(AppInfo.version)").foregroundStyle(.secondary).monospacedDigit()
-            Text("OpenRouter, OpenCode, Grok, Codex and Claude limits in the menu bar.\nA port of the Omarchy plugin Agent Meters.")
+            Text("OpenRouter, OpenCode, Grok, Codex, Claude and Antigravity limits in the menu bar.\nA port of the Omarchy plugin Agent Meters.")
                 .multilineTextAlignment(.center)
                 .font(.callout)
                 .foregroundStyle(.secondary)

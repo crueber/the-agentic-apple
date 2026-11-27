@@ -26,11 +26,13 @@ struct DisplayState: Equatable {
     /// No fetch has finished yet in this session and nothing was cached.
     var looking = false
 
-    /// Panel list: every available agent, saved order first.
-    var panelProviders: [Provider] { Ordering.orderedProviders(providers, visibility: [:], order: order) }
-    /// Bar list: the panel list filtered by the show switches.
-    var barProviders: [Provider] { Ordering.shownProviders(panelProviders, visibility: visibility) }
-    var hiddenCount: Int { panelProviders.count - barProviders.count }
+    /// Every available agent, saved order first.
+    var availableProviders: [Provider] { Ordering.orderedProviders(providers, visibility: [:], order: order) }
+    /// Bar list: available agents filtered by the show switches.
+    var barProviders: [Provider] { Ordering.shownProviders(availableProviders, visibility: visibility) }
+    /// Panel list: shown agents only; deselected agents are managed in Settings → Agents.
+    var panelProviders: [Provider] { barProviders }
+    var hiddenCount: Int { availableProviders.count - barProviders.count }
 
     func isShown(_ id: ProviderID) -> Bool { visibility[id] != false }
 
@@ -49,7 +51,7 @@ struct DisplayState: Equatable {
 
     var heroMeta: String {
         var parts: [String] = []
-        let n = panelProviders.count
+        let n = availableProviders.count
         if n > 0 { parts.append("\(n) " + (n == 1 ? "agent" : "agents")) }
         if hiddenCount > 0 { parts.append("\(hiddenCount) hidden") }
         let ago = Format.updatedAgo(lastFetchMs, now: now)
@@ -73,7 +75,7 @@ struct DisplayState: Equatable {
         if !barProviders.isEmpty {
             return Summary.tooltip(barProviders, history: history, now: now, warn: warn, critical: critical)
         }
-        return panelProviders.isEmpty ? Summary.noAgents : Summary.allHiddenTooltip
+        return availableProviders.isEmpty ? Summary.noAgents : Summary.allHiddenTooltip
     }
 
     /// One line per shown agent ("Claude: 5h 18% · 7d 62%"), as the reference's `text` IPC.

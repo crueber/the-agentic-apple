@@ -21,7 +21,6 @@ struct ProviderSection: View {
         var parts: [String] = []
         if !provider.tier.isEmpty { parts.append(provider.tier) }
         if !provider.status.isEmpty { parts.append(provider.status) }
-        if !state.isShown(provider.id) { parts.append("Hidden from bar") }
         return parts.joined(separator: " · ")
     }
 
@@ -98,7 +97,7 @@ struct ProviderSection: View {
                     .foregroundStyle(state.palette.color(s.color, scheme))
                     .opacity(s.stale ? 0.55 : 1)
             }
-            MiniSwitch(isOn: state.isShown(provider.id), label: "Show \(provider.name) in the menu bar") {
+            MiniSwitch(isOn: state.isShown(provider.id), label: "Show \(provider.name)") {
                 actions.setShown(provider.id, $0)
             }
             GripHandle()

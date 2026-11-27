@@ -24,8 +24,8 @@ struct BarView: View {
             let shown = state.barProviders
             if shown.isEmpty {
                 AgentMetersGlyph(size: BarMetrics.markSize + 1)
-                    .opacity(state.panelProviders.isEmpty ? 0.75 : 0.55)
-                    .accessibilityLabel(Text(state.panelProviders.isEmpty ? "No AI agents found" : "All agents hidden"))
+                    .opacity(state.availableProviders.isEmpty ? 0.75 : 0.55)
+                    .accessibilityLabel(Text(state.availableProviders.isEmpty ? "No AI agents found" : "All agents hidden"))
             } else {
                 ForEach(shown) { provider in
                     BarChip(provider: provider, state: state)

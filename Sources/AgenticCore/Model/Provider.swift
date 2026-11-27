@@ -1,10 +1,10 @@
 import Foundation
 
-/// The five agents, in the default bar order.
+/// The six agents, in the default bar order.
 public enum ProviderID: String, Codable, CaseIterable, Sendable {
-    case openrouter, opencode, grok, codex, claude
+    case openrouter, opencode, grok, codex, claude, antigravity
 
-    public static let defaultOrder: [ProviderID] = [.openrouter, .opencode, .grok, .codex, .claude]
+    public static let defaultOrder: [ProviderID] = [.openrouter, .opencode, .grok, .codex, .claude, .antigravity]
 
     public var displayName: String {
         switch self {
@@ -13,6 +13,7 @@ public enum ProviderID: String, Codable, CaseIterable, Sendable {
         case .grok: return "Grok"
         case .codex: return "Codex"
         case .claude: return "Claude"
+        case .antigravity: return "Antigravity"
         }
     }
 }
@@ -184,6 +185,7 @@ public struct CollectorContext: Sendable {
     public var claudeCommand: String
     public var grokHome: String
     public var botHome: String
+    public var antigravityHome: String
     public var authFile: String
     public var now: Date
     /// Inject HTTP for tests. nil = real network.
@@ -198,7 +200,7 @@ public struct CollectorContext: Sendable {
                 environment: [String: String] = ProcessInfo.processInfo.environment,
                 searchPath: [String] = [],
                 opencodeCommand: String = "", codexCommand: String = "", claudeCommand: String = "",
-                grokHome: String = "", botHome: String = "", authFile: String = "",
+                grokHome: String = "", botHome: String = "", antigravityHome: String = "", authFile: String = "",
                 now: Date = Date(), http: HTTPClient? = nil, openrouterBaseline: MonthlyBaseline? = nil) {
         self.home = home
         self.environment = environment
@@ -208,6 +210,7 @@ public struct CollectorContext: Sendable {
         self.claudeCommand = claudeCommand
         self.grokHome = grokHome
         self.botHome = botHome
+        self.antigravityHome = antigravityHome
         self.authFile = authFile
         self.now = now
         self.http = http

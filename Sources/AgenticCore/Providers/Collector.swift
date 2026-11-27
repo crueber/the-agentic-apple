@@ -2,7 +2,7 @@ import Foundation
 
 /// Runs every provider concurrently and returns them in the default order.
 ///
-/// - `Collector.all` — the five collectors with in-memory state (tests, previews).
+/// - `Collector.all` — the six collectors with in-memory state (tests, previews).
 /// - `Collector.live(cacheDir:)` — what the app and CLI use: Claude's activity scan
 ///   persists to `<cacheDir>/claude-activity.json` between refreshes.
 public struct Collector: Sendable {
@@ -14,6 +14,7 @@ public struct Collector: Sendable {
 
     public static let all: [any ProviderCollector] = [
         OpenRouterCollector(), OpenCodeCollector(), GrokCollector(), CodexCollector(), ClaudeCollector(),
+        AntigravityCollector(),
     ]
 
     /// The app's collector set. `cacheDir` defaults to the usage cache's directory
@@ -22,6 +23,7 @@ public struct Collector: Sendable {
         Collector(collectors: [
             OpenRouterCollector(), OpenCodeCollector(), GrokCollector(), CodexCollector(),
             ClaudeCollector(activityCache: cacheDir.appendingPathComponent("claude-activity.json")),
+            AntigravityCollector(),
         ])
     }
 

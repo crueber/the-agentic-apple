@@ -45,6 +45,7 @@ final class AppSettings: ObservableObject {
     @Published var codexCommand: String { didSet { defaults.set(codexCommand, forKey: Keys.codexCommand) } }
     @Published var grokHome: String { didSet { defaults.set(grokHome, forKey: Keys.grokHome) } }
     @Published var botHome: String { didSet { defaults.set(botHome, forKey: Keys.botHome) } }
+    @Published var antigravityHome: String { didSet { defaults.set(antigravityHome, forKey: Keys.antigravityHome) } }
     @Published var authFile: String { didSet { defaults.set(authFile, forKey: Keys.authFile) } }
     @Published var showActivity: Bool { didSet { defaults.set(showActivity, forKey: Keys.showActivity) } }
     /// Mirrors SMAppService's state; the source of truth is the system.
@@ -84,6 +85,7 @@ final class AppSettings: ObservableObject {
         static let codexCommand = "codexCommand"
         static let grokHome = "grokHome"
         static let botHome = "botHome"
+        static let antigravityHome = "antigravityHome"
         static let authFile = "authFile"
         static let showActivity = "showActivity"
         static let launchAtLogin = "launchAtLogin"
@@ -117,6 +119,7 @@ final class AppSettings: ObservableObject {
         codexCommand = s.codexCommand
         grokHome = s.grokHome
         botHome = s.botHome
+        antigravityHome = s.antigravityHome
         authFile = s.authFile
         showActivity = defaults.object(forKey: Keys.showActivity) as? Bool ?? true
         launchAtLogin = defaults.bool(forKey: Keys.launchAtLogin)
@@ -148,6 +151,7 @@ struct SettingsSnapshot: Sendable {
     var codexCommand = ""
     var grokHome = ""
     var botHome = ""
+    var antigravityHome = ""
     var authFile = ""
     var openrouterKeyRows = 3
     var openrouterAverageMonths = 2
@@ -167,6 +171,7 @@ struct SettingsSnapshot: Sendable {
         s.codexCommand = d.string(forKey: K.codexCommand) ?? ""
         s.grokHome = d.string(forKey: K.grokHome) ?? ""
         s.botHome = d.string(forKey: K.botHome) ?? ""
+        s.antigravityHome = d.string(forKey: K.antigravityHome) ?? ""
         s.authFile = d.string(forKey: K.authFile) ?? ""
         s.openrouterKeyRows = AppSettings.clampKeyRows(
             Schedule.clampInt((d.object(forKey: K.openrouterKeyRows) as? NSNumber)?.doubleValue, 0, 12,
@@ -180,7 +185,8 @@ struct SettingsSnapshot: Sendable {
     func context(searchPath: [String], now: Date = Date()) -> CollectorContext {
         var context = CollectorContext(searchPath: searchPath,
                                        opencodeCommand: opencodeCommand, codexCommand: codexCommand,
-                                       grokHome: grokHome, botHome: botHome, authFile: authFile, now: now)
+                                       grokHome: grokHome, botHome: botHome, antigravityHome: antigravityHome,
+                                       authFile: authFile, now: now)
         context.openrouterAverageMonths = openrouterAverageMonths
         return context
     }

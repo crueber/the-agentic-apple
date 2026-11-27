@@ -47,16 +47,16 @@ enum LogicTests {
     // MARK: order and visibility
 
     static func ordering(_ t: TestRun) {
-        let list = [provider(.claude), provider(.codex), provider(.grok), provider(.opencode),
+        let list = [provider(.antigravity), provider(.claude), provider(.codex), provider(.grok), provider(.opencode),
                     provider(.openrouter), provider(.grok, available: false)]
-        t.equal(ids(Ordering.visibleProviders(list, visibility: [:])), "openrouter,opencode,grok,codex,claude")
-        t.equal(ids(Ordering.visibleProviders(list, visibility: [.claude: false, .openrouter: false])), "opencode,grok,codex")
+        t.equal(ids(Ordering.visibleProviders(list, visibility: [:])), "openrouter,opencode,grok,codex,claude,antigravity")
+        t.equal(ids(Ordering.visibleProviders(list, visibility: [.claude: false, .openrouter: false])), "opencode,grok,codex,antigravity")
         // An unavailable entry never shows, even listed first.
         t.equal(ids(Ordering.visibleProviders([provider(.grok, available: false)], visibility: [:])), "")
 
-        let five = Array(list.prefix(5))
-        t.equal(ids(Ordering.orderedProviders(five, visibility: [:], order: "grok,claude")), "grok,claude,openrouter,opencode,codex")
-        t.equal(ids(Ordering.orderedProviders(five, order: "")), "openrouter,opencode,grok,codex,claude")
+        let six = Array(list.prefix(6))
+        t.equal(ids(Ordering.orderedProviders(six, visibility: [:], order: "grok,claude")), "grok,claude,openrouter,opencode,codex,antigravity")
+        t.equal(ids(Ordering.orderedProviders(six, order: "")), "openrouter,opencode,grok,codex,claude,antigravity")
         t.equal(ids(Ordering.parseOrder("grok, bogus, grok, claude")), "grok,claude")
         t.equal(ids(Ordering.moveOrder("grok,claude,opencode,openrouter", id: .claude, delta: -1)), "claude,grok,opencode,openrouter")
         t.equal(ids(Ordering.moveOrder("claude,grok", id: .claude, delta: -1)), "claude,grok")
@@ -64,15 +64,15 @@ enum LogicTests {
         t.equal(ids(Ordering.moveOrder("claude,grok", id: .codex, delta: 1)), "claude,grok")
 
         let all = ProviderID.defaultOrder
-        t.equal(ids(Ordering.reorderInsert("", visibleIDs: all, id: .claude, insertIndex: 0)), "claude,openrouter,opencode,grok,codex")
-        t.equal(ids(Ordering.reorderInsert("", visibleIDs: all, id: .openrouter, insertIndex: 4)), "opencode,grok,codex,claude,openrouter")
-        t.equal(ids(Ordering.reorderInsert("", visibleIDs: all, id: .grok, insertIndex: 2)), "openrouter,opencode,grok,codex,claude")
-        t.equal(ids(Ordering.reorderInsert("openrouter,opencode,grok,codex,claude", visibleIDs: [.opencode, .claude], id: .claude, insertIndex: 0)),
-                "openrouter,claude,opencode,grok,codex", "hidden agent keeps its slot")
-        t.equal(ids(Ordering.reorderInsert("", visibleIDs: all, id: .claude, insertIndex: 99)), "openrouter,opencode,grok,codex,claude")
-        t.equal(ids(Ordering.reorderInsert("", visibleIDs: all, id: .claude, insertIndex: -5)), "claude,openrouter,opencode,grok,codex")
-        t.equal(ids(Ordering.reorderInsert("", visibleIDs: [.claude], id: .claude, insertIndex: 3)), "openrouter,opencode,grok,codex,claude", "single row")
-        t.equal(ids(Ordering.reorderInsert("grok", visibleIDs: all, id: .codex, insertIndex: 99)), "grok,openrouter,opencode,claude,codex", "partial saved order completed")
+        t.equal(ids(Ordering.reorderInsert("", visibleIDs: all, id: .claude, insertIndex: 0)), "claude,openrouter,opencode,grok,codex,antigravity")
+        t.equal(ids(Ordering.reorderInsert("", visibleIDs: all, id: .openrouter, insertIndex: 5)), "opencode,grok,codex,claude,antigravity,openrouter")
+        t.equal(ids(Ordering.reorderInsert("", visibleIDs: all, id: .grok, insertIndex: 2)), "openrouter,opencode,grok,codex,claude,antigravity")
+        t.equal(ids(Ordering.reorderInsert("openrouter,opencode,grok,codex,claude,antigravity", visibleIDs: [.opencode, .claude], id: .claude, insertIndex: 0)),
+                "openrouter,claude,opencode,grok,codex,antigravity", "hidden agent keeps its slot")
+        t.equal(ids(Ordering.reorderInsert("", visibleIDs: all, id: .claude, insertIndex: 99)), "openrouter,opencode,grok,codex,antigravity,claude")
+        t.equal(ids(Ordering.reorderInsert("", visibleIDs: all, id: .claude, insertIndex: -5)), "claude,openrouter,opencode,grok,codex,antigravity")
+        t.equal(ids(Ordering.reorderInsert("", visibleIDs: [.claude], id: .claude, insertIndex: 3)), "openrouter,opencode,grok,codex,claude,antigravity", "single row")
+        t.equal(ids(Ordering.reorderInsert("grok", visibleIDs: all, id: .codex, insertIndex: 99)), "grok,openrouter,opencode,claude,antigravity,codex", "partial saved order completed")
 
         let shown = [provider(.opencode), provider(.claude), provider(.openrouter)]
         t.equal(ids(Ordering.shownProviders(shown, visibility: [:])), "opencode,claude,openrouter")

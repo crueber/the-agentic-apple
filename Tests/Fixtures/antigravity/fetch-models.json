@@ -1,0 +1,25 @@
+{
+  "models": {
+    "gemini-3-pro": {
+      "displayName": "Gemini 3 Pro",
+      "quotaInfo": {
+        "remainingFraction": 0.65,
+        "resetTime": "2026-11-17T16:00:00Z"
+      }
+    },
+    "gemini-3-flash": {
+      "displayName": "Gemini 3 Flash",
+      "quotaInfo": {
+        "remainingFraction": 0.90,
+        "resetTime": "2026-11-17T16:00:00Z"
+      }
+    },
+    "claude-opus": {
+      "displayName": "Claude Opus",
+      "quotaInfo": {
+        "remainingFraction": 0.30,
+        "resetTime": "2026-11-17T15:00:00Z"
+      }
+    }
+  }
+}
