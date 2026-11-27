@@ -57,7 +57,7 @@ no Node, no Omarchy and no daemon of its own.
 | **Grok** | Grok mark + plan and Grok Bot meters | Weekly (or daily/monthly) plan limit, Grok Bot's separate weekly allowance, this week's local activity |
 | **Codex** | Codex mark + up to three meters | Session, weekly, code review, model-scoped allowances, a Business seat's spend cap |
 | **Claude** | Anthropic asterisk + up to three meters | Session (5-hour), weekly (7-day), model-scoped allowances (e.g. Fable weekly), today's activity |
-| **Antigravity** | Antigravity mark + up to three meters | Quota windows for Gemini (5-hour / weekly) and shared Claude & GPT pools, or per-pool model quotas (Gemini Pro, Gemini Flash, Claude & GPT) |
+| **Antigravity** | Antigravity mark + up to three meters | Session (5-hour) and Weekly (7-day) limits (plus shared Claude & GPT buckets when used), or per-pool model quotas |
 
 Every agent gets:
 
@@ -401,11 +401,11 @@ Antigravity Desktop App (2.0) and Antigravity IDE:
    lapsed access token shows *Limits paused* (or *Sign-in expired*) and keeps the
    last numbers marked stale until Antigravity refreshes its own sign-in.
 
-When `RetrieveUserQuotaSummary` returns grouped windows, the panel shows each
-group's 5-hour and weekly buckets (e.g. **Gemini (5-hour)**, **Gemini Weekly**,
-**Claude & GPT (5-hour)**). Otherwise, per-model quotas are grouped into shared
-pools (**Gemini Pro**, **Gemini Flash**, **Claude & GPT**) showing the highest
-used percentage in each pool.
+When `RetrieveUserQuotaSummary` returns grouped windows, the panel shows
+**Session (5-hour)** and **Weekly (7-day)** for Antigravity's primary Gemini
+quota (and includes **Claude & GPT** buckets only when used). Otherwise,
+per-model quotas are grouped into shared pools (**Gemini Pro**, **Gemini Flash**,
+**Claude & GPT**) showing the highest used percentage in each pool.
 
 ## How it fetches
 
@@ -592,7 +592,7 @@ OpenCode: 5h 24% · 7d 41% · 1m 9%
 Grok: 7d 41% · bot 42.7%
 Codex: 5h 12% · 7d 34% · rev 5%
 Claude: 5h 18% · 7d 62% · fable 7%
-Antigravity: gem 5h 28% · gem 7d 52% · 3p 5h 15%
+Antigravity: 5h 28% · 7d 52%
 ```
 
 (Invented figures, from `agentic-apple --fixture --text`.) `--json` lists all

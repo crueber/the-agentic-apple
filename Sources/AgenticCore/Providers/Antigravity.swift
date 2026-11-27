@@ -565,7 +565,7 @@ public struct AntigravityCollector: ProviderCollector {
             "Authorization": "Bearer " + creds.accessToken,
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "antigravity/acp",
+            "User-Agent": "antigravity/acp/2.0.0",
         ]
 
         // 1. Resolve plan tier and companion project (best-effort, unless 401/403).
@@ -877,7 +877,11 @@ public struct AntigravityCollector: ProviderCollector {
 
     private static func parseGroups(_ groups: [Any]) -> [Limit] {
         let dictGroups = groups.compactMap { $0 as? [String: Any] }
-        let singleGroup = dictGroups.count == 1
+        let hasGeminiGroup = dictGroups.contains { group in
+            let groupID = Sanitize.text(group["modelGroup"] ?? group["id"], max: 60)
+            let groupName = Sanitize.text(group["displayName"] ?? group["label"], max: 80)
+            return classifyGroup(id: groupID, displayName: groupName).key.hasPrefix("gemini")
+        }
         var ranked: [(rank: Int, subRank: Int, index: Int, limit: Limit)] = []
         var keys = Set<String>()
 
@@ -885,19 +889,39 @@ public struct AntigravityCollector: ProviderCollector {
             let groupID = Sanitize.text(group["modelGroup"] ?? group["id"], max: 60)
             let groupName = Sanitize.text(group["displayName"] ?? group["label"], max: 80)
             let meta = classifyGroup(id: groupID, displayName: groupName)
+            let isPrimary = meta.key == "gemini"
             guard let buckets = group["buckets"] as? [Any] else { continue }
             for case let bucket as [String: Any] in buckets {
                 guard let (used, limited) = usedPercent(from: bucket) else { continue }
+                let resetsAt = Sanitize.dateMs(bucket["resetTime"])
+                // When Antigravity returns the primary Gemini limits, skip untouched
+                // third-party (Claude & GPT) buckets at 0% with no active reset so
+                // the bar and panel stay focused on Session and Weekly limits.
+                if hasGeminiGroup && meta.key == "claude-gpt" && used == 0 && !limited && resetsAt == 0 {
+                    continue
+                }
                 let bWin = Sanitize.text(bucket["window"] ?? bucket["windowType"], max: 40)
                 let bName = Sanitize.text(bucket["displayName"] ?? bucket["label"], max: 60)
-                let bID = Sanitize.text(bucket["id"], max: 60)
+                let bID = Sanitize.text(bucket["bucketId"] ?? bucket["id"], max: 60)
                 let win = classifyWindow(window: bWin, displayName: bName, id: bID)
 
-                let key = "\(meta.key)-\(win.key)"
+                let key: String
+                let label: String
+                let short: String
+                if isPrimary {
+                    key = win.key
+                    switch win.key {
+                    case "session": label = "Session (5-hour)"
+                    case "weekly": label = "Weekly (7-day)"
+                    default: label = win.label.isEmpty ? meta.label : "\(meta.label) \(win.label)"
+                    }
+                    short = win.short
+                } else {
+                    key = "\(meta.key)-\(win.key)"
+                    label = win.label.isEmpty ? meta.label : "\(meta.label) \(win.label)"
+                    short = dictGroups.count == 1 ? win.short : "\(meta.shortPrefix) \(win.short)"
+                }
                 guard keys.insert(key).inserted else { continue }
-                let label = win.label.isEmpty ? meta.label : "\(meta.label) \(win.label)"
-                let short = singleGroup ? win.short : "\(meta.shortPrefix) \(win.short)"
-                let resetsAt = Sanitize.dateMs(bucket["resetTime"])
                 let limit = Limit(key: key, label: Sanitize.plain(label, max: 80),
                                   short: Sanitize.plain(short, max: 14),
                                   percent: used, resetsAt: resetsAt, limited: limited)

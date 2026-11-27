@@ -106,9 +106,9 @@ enum AntigravityTests {
         t.equal(p.tier, "Google AI Pro", "tier from GetUserStatus")
         t.equal(p.error, "", "no error")
         t.near(p.readAt, now.timeIntervalSince1970 * 1000, 1, "readAt set")
-        t.equal(p.limits.map(\.key), ["gemini-session", "gemini-weekly", "claude-gpt-session", "claude-gpt-weekly"], "summary keys + rank")
-        t.equal(p.limits.map(\.label), ["Gemini (5-hour)", "Gemini Weekly", "Claude & GPT (5-hour)", "Claude & GPT Weekly"], "summary labels")
-        t.equal(p.limits.map(\.short), ["gem 5h", "gem 7d", "3p 5h", "3p 7d"], "summary shorts")
+        t.equal(p.limits.map(\.key), ["session", "weekly", "claude-gpt-session", "claude-gpt-weekly"], "summary keys + rank")
+        t.equal(p.limits.map(\.label), ["Session (5-hour)", "Weekly (7-day)", "Claude & GPT (5-hour)", "Claude & GPT Weekly"], "summary labels")
+        t.equal(p.limits.map(\.short), ["5h", "7d", "3p 5h", "3p 7d"], "summary shorts")
         t.near(p.limits[0].percent, 28, 0.01, "1 - 0.72 = 28% used")
         t.near(p.limits[1].percent, 52, 0.01, "1 - 0.48 = 52% used")
         t.near(p.limits[2].percent, 15, 0.01, "1 - 0.85 = 15% used")
@@ -185,6 +185,7 @@ enum AntigravityTests {
         let calls1 = Calls()
         let http1 = httpClient(calls1) { url, headers, _ in
             t.equal(headers["Authorization"] ?? "", "Bearer \(token)", "bearer header")
+            t.equal(headers["User-Agent"] ?? "", "antigravity/acp/2.0.0", "versioned ACP user-agent for Gemini groups")
             if url == AntigravityCollector.loadCodeAssistEndpoint {
                 return HTTPResponse(status: 200, body: Fixtures.data("antigravity/load-code-assist.json"))
             }
@@ -394,5 +395,32 @@ enum AntigravityTests {
         t.equal(AntigravityCollector.usedPercent(from: ["isExhausted": true])?.limited, true)
         t.equal(AntigravityCollector.usedPercent(from: ["resetTime": "2026-11-17T15:00:00Z"])?.limited, true, "exhausted bucket omitting remainingFraction")
         t.check(AntigravityCollector.usedPercent(from: [:]) == nil, "empty quota dropped")
+
+        // Live retrieveUserQuotaSummary shape (top-level groups, bucketId, window: "weekly"/"5h", no modelGroup).
+        let liveShape: [String: Any] = [
+            "groups": [
+                [
+                    "displayName": "Gemini Models",
+                    "buckets": [
+                        ["bucketId": "gemini-weekly", "displayName": "Weekly Limit Remaining", "window": "weekly", "remainingFraction": 0.84, "resetTime": "2026-12-04T11:30:00Z"],
+                        ["bucketId": "gemini-5h", "displayName": "Five Hour Limit Remaining", "window": "5h", "remainingFraction": 0.40, "resetTime": "2026-11-27T16:30:00Z"],
+                    ],
+                ],
+                [
+                    "displayName": "Claude and GPT models",
+                    "buckets": [
+                        ["bucketId": "3p-weekly", "displayName": "Weekly Limit Remaining", "window": "weekly", "remainingFraction": 1],
+                        ["bucketId": "3p-5h", "displayName": "Five Hour Limit Remaining", "window": "5h", "remainingFraction": 1],
+                    ],
+                ],
+            ],
+        ]
+        let liveLimits = AntigravityCollector.limitsFromQuotaSummary(liveShape)
+        // Unused 0% 3P buckets with no reset are omitted when primary Gemini limits exist.
+        t.equal(liveLimits.map(\.key), ["session", "weekly"], "live shape keys + rank")
+        t.equal(liveLimits.map(\.label), ["Session (5-hour)", "Weekly (7-day)"], "live shape labels")
+        t.equal(liveLimits.map(\.short), ["5h", "7d"], "live shape shorts")
+        t.near(liveLimits[0].percent, 60, 0.01, "live Gemini 5h used percent")
+        t.near(liveLimits[1].percent, 16, 0.01, "live Gemini weekly used percent")
     }
 }

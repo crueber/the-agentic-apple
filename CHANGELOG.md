@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.1 — 2026-11-27
+
+- **Antigravity Session & Weekly limits.** Send a versioned `User-Agent`
+  (`antigravity/acp/2.0.0`) to `v1internal:retrieveUserQuotaSummary` so Google
+  returns the primary **Gemini Models** quota group instead of dropping it and
+  returning only third-party (`Claude & GPT`) buckets; also read `bucketId` on
+  returned buckets.
+- Map Antigravity's primary 5-hour and weekly buckets to **Session (5-hour)**
+  (`5h`) and **Weekly (7-day)** (`7d`), and omit untouched 0% third-party
+  (`Claude & GPT`) buckets when the primary limits are present.
+
 ## 1.2.0 — 2026-11-27
 
 - **Antigravity support.** Added Google Antigravity (CLI, Desktop App and IDE)
