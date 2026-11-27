@@ -385,12 +385,12 @@ Antigravity Desktop App (2.0) and Antigravity IDE:
 
 1. **Local language server (preferred, no Keychain prompt):** when an
    Antigravity `language_server_macos*` process is running, the app locates its
-   loopback port (`127.0.0.1`) with `ps` and `lsof` and queries its local
-   Connect-RPC service (`GetUserStatus`, `RetrieveUserQuotaSummary`, falling
-   back to `GetCommandModelConfigs`).
+   loopback port (`127.0.0.1`) via `ps` and Darwin's socket-only `libproc` API
+   (never touching files or folders) and queries its local Connect-RPC service
+   (`GetUserStatus`, `RetrieveUserQuotaSummary`, falling back to
+   `GetCommandModelConfigs`).
 2. **Read-only OAuth fallback:** when Antigravity is installed on this Mac
-   (`~/.gemini/antigravity-cli`, `~/.gemini/antigravity`,
-   `~/Library/Application Support/Antigravity`, `Antigravity.app`, or
+   (`~/.gemini/antigravity-cli`, `~/.gemini/antigravity`, `Antigravity.app`, or
    `antigravity` / `agy` on `PATH`) and no local server is running, the app
    reads the macOS Keychain item `gemini` / `antigravity` (through
    `/usr/bin/security … -w`) or `oauth_creds.json` under the Antigravity home
@@ -750,7 +750,7 @@ Use the types shown: a `show…` key written as a string reads as *shown*.
 | `codexCommand` | string | `""` | Path to `codex`; empty searches the login `PATH`, mise and its installs |
 | `grokHome` | string | `""` | Grok home; empty uses `$GROK_HOME` or `~/.grok` |
 | `botHome` | string | `""` | Grok Bot cache directory; empty tries the locations listed under [Grok](#grok) |
-| `antigravityHome` | string | `""` | Antigravity home directory; empty uses `$ANTIGRAVITY_HOME`, `~/.gemini/antigravity-cli`, `~/.gemini/antigravity` and `~/Library/Application Support/Antigravity` |
+| `antigravityHome` | string | `""` | Antigravity home directory; empty uses `$ANTIGRAVITY_HOME`, `~/.gemini/antigravity-cli` and `~/.gemini/antigravity` |
 | `authFile` | string | `""` | An OpenCode 1 `auth.json` holding the OpenRouter key; when set, only this file is read |
 | `openrouterAverageMonths` | int | `2` | With an OpenRouter management key: the usage meter compares this month with the average of the last N full months, 1–12; `0` turns the meter off (no meter, no analytics request). The Settings toggle **Usage meter** is simply this value > 0 |
 | `openrouterKeyRows` | int | `3` | With an OpenRouter management key: how many of the keys used most this month the panel lists, 0–12 (0 = none); the bar never shows them |
@@ -839,7 +839,6 @@ after `-w`, so `security` asks for it instead of taking it on the command line).
   bounded and neutralised before display; percentages are clamped to 0–100;
   command output, files and responses are size- and time-limited.
 - **Executables run:** `/usr/bin/security`, `/usr/bin/sqlite3`, `/bin/ps`,
-  `/usr/sbin/lsof` (only when a running Antigravity language server is found),
   `opencode`, `codex`, `mise` (only `mise which codex`, offline) and, once per launch, your
   login shell to read `PATH` and the allowlisted variables. During an update:
   `hdiutil` (attach and detach the downloaded image, read-only), `codesign`

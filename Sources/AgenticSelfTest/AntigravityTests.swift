@@ -66,14 +66,8 @@ enum AntigravityTests {
         t.equal(procs[1].csrfToken, "cli-tok", "space-form csrf_token parsed")
         t.equal(procs[1].hintPorts, [55111], "server_port parsed")
 
-        let lsof = """
-        COMMAND     PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
-        language_s  303 demo   12u  IPv4 0x1234567890      0t0  TCP 127.0.0.1:49200 (LISTEN)
-        language_s  303 demo   13u  IPv6 0x1234567891      0t0  TCP [::1]:49199 (LISTEN)
-        language_s  303 demo   14u  IPv4 0x1234567892      0t0  TCP 192.168.1.5:9999 (LISTEN)
-        language_s  303 demo   15u  IPv4 0x1234567893      0t0  TCP 127.0.0.1:49200 (ESTABLISHED)
-        """
-        t.equal(AntigravityCollector.parseListeningPorts(lsof), [49199, 49200], "only loopback LISTEN ports sorted")
+        // Native libproc socket-only listening port inspection on our own PID (invalid PID → empty).
+        t.equal(AntigravityCollector.listeningPorts(for: -1), [], "invalid pid returns empty")
     }
 
     // MARK: local language server

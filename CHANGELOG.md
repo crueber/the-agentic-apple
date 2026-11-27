@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.0 — 2026-11-27
+
+- **Antigravity support.** Added Google Antigravity (CLI, Desktop App and IDE)
+  with its own monochrome arch mark, menu bar meters, panel section and
+  **Settings → Advanced → Antigravity home** override (`antigravityHome` /
+  `ANTIGRAVITY_HOME`):
+  - prefers a running local Antigravity `language_server_macos*` over loopback
+    (`127.0.0.1`) Connect-RPC (`GetUserStatus`, `RetrieveUserQuotaSummary`,
+    `GetCommandModelConfigs`), locating listening TCP ports directly via
+    Darwin's socket-only `libproc` API without `lsof` or folder access;
+  - falls back read-only when installed and not running to the macOS Keychain
+    item `gemini` / `antigravity` (via `/usr/bin/security`, unwrapping
+    `go-keyring-base64:` and hex blobs) or local `oauth_creds.json` against
+    `daily-cloudcode-pa.googleapis.com`; tokens are never refreshed, cached or
+    logged.
+- **Hidden agents leave the dropdown panel too.** Switching an agent off in the
+  panel or in **Settings → Agents** now hides it from both the menu bar and the
+  main dropdown panel to save space; re-enable any hidden agent from
+  **Settings → Agents**. If every detected agent is switched off, the panel
+  offers a direct **Open Settings…** button.
+
 ## 1.1.1 — 2026-11-19
 
 - **OpenRouter key with a daily limit** now reads that day's spend

@@ -224,8 +224,7 @@ nothing about you or your agents.
 | your login shell (`$SHELL`, else `/bin/zsh`) | `-l -i -c` with a fixed script printing `PATH` and an allowlist of variables | once per launch, in its own session with no terminal, bounded by a timeout |
 | `/usr/bin/security` | `find-generic-password -s "Claude Code-credentials" -w` | each refresh |
 | `/usr/bin/security` | `find-generic-password -s gemini -a antigravity -w` | fallback when Antigravity is installed but no local language server answered |
-| `/bin/ps` | `-ww -eo pid=,args=` | each refresh, to locate a running Antigravity `language_server_macos*` |
-| `/usr/sbin/lsof` | `-nP -iTCP -sTCP:LISTEN -a -p <pid>` | each refresh, only when a running Antigravity language server is found |
+| `/bin/ps` | `-ww -eo pid=,args=` | each refresh, to locate a running Antigravity `language_server_macos*` (loopback listening ports are read socket-only via `libproc` without inspecting files or mounts) |
 | `/usr/bin/security` | `find-generic-password -s com.crueber.agentic-apple.openrouter-management-key -a default -w` | once per launch, unless `OPENROUTER_MANAGEMENT_KEY` is set |
 | `/usr/bin/security` | `find-generic-password -s … -a default` (no `-w`) | when Settings shows the key's status |
 | `/usr/bin/security` | `-i`, with `delete-generic-password …` and `add-generic-password -U … -w <key>` on stdin | when you click **Save** |

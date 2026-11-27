@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Antigravity OAuth credentials, read-only. Never refreshed, written back,
@@ -106,7 +107,7 @@ public struct AntigravityServerProcess: Sendable, Equatable {
     public var pid: Int32
     /// Ephemeral per-process CSRF nonce; sent only in `X-Codeium-Csrf-Token` to 127.0.0.1.
     public var csrfToken: String
-    /// Candidate loopback TCP ports (from `lsof`, plus `--extension_server_port` / `--https_server_port`).
+    /// Candidate loopback TCP ports (from `libproc` socket inspection, plus `--extension_server_port` / `--https_server_port`).
     public var ports: [Int]
     public var appDataDir: String
 
@@ -122,9 +123,11 @@ public struct AntigravityServerProcess: Sendable, Equatable {
 ///
 /// 1. Local running Antigravity language server (`language_server_macos*` for
 ///    Antigravity IDE, Desktop App 2.0 or CLI): discovered via `/bin/ps` and
-///    `/usr/sbin/lsof`, queried over loopback (`127.0.0.1`) Connect-RPC using
-///    `GetUserStatus`, `RetrieveUserQuotaSummary` and `GetCommandModelConfigs`
-///    (no Keychain prompt while Antigravity is running).
+///    Darwin `libproc` socket-only inspection (`PROC_PIDLISTFDS` +
+///    `PROC_PIDFDSOCKETINFO` — never touches vnodes, mounts or folders), then
+///    queried over loopback (`127.0.0.1`) Connect-RPC using `GetUserStatus`,
+///    `RetrieveUserQuotaSummary` and `GetCommandModelConfigs` (no Keychain
+///    prompt while Antigravity is running).
 /// 2. Read-only OAuth fallback when no local language server answers and
 ///    Antigravity is installed on this Mac: reads the Keychain item
 ///    `gemini` / `antigravity` via `/usr/bin/security … -w` or local
@@ -227,11 +230,8 @@ public struct AntigravityCollector: ProviderCollector {
         return candidates.compactMap { entry in
             var ports: [Int] = []
             var seen = Set<Int>()
-            let lsof = Shell.run("/usr/sbin/lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", String(entry.pid)], timeout: 5)
-            if lsof.ok {
-                for p in parseListeningPorts(lsof.stdoutText) where seen.insert(p).inserted {
-                    ports.append(p)
-                }
+            for p in listeningPorts(for: entry.pid) where seen.insert(p).inserted {
+                ports.append(p)
             }
             for p in entry.hintPorts where seen.insert(p).inserted {
                 ports.append(p)
@@ -240,6 +240,63 @@ public struct AntigravityCollector: ProviderCollector {
             return AntigravityServerProcess(pid: entry.pid, csrfToken: entry.csrfToken,
                                             ports: ports, appDataDir: entry.appDataDir)
         }
+    }
+
+    /// Loopback/wildcard listening TCP ports of `pid`, read directly from the
+    /// kernel via `libproc` (`PROC_PIDLISTFDS` + `PROC_PIDFDSOCKETINFO`).
+    /// Only inspects `PROX_FDTYPE_SOCKET` descriptors — never inspects vnodes,
+    /// mounts, or filesystem paths, so it cannot trigger macOS TCC folder prompts.
+    public static func listeningPorts(for pid: Int32) -> [Int] {
+        let fdSize = MemoryLayout<proc_fdinfo>.stride
+        let needed = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+        guard needed > 0 else { return [] }
+        // Slight headroom in case the process opens a few FDs between the two calls.
+        let count = min(65_536, Int(needed) / fdSize + 16)
+        var fds = Array(repeating: proc_fdinfo(), count: count)
+        let bytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, &fds, Int32(count * fdSize))
+        guard bytes > 0 else { return [] }
+        let actual = Int(bytes) / fdSize
+
+        var ports: [Int] = []
+        var seen = Set<Int>()
+        for i in 0..<actual {
+            let fd = fds[i]
+            guard fd.proc_fdtype == UInt32(PROX_FDTYPE_SOCKET) else { continue }
+            var info = socket_fdinfo()
+            let got = proc_pidfdinfo(pid, fd.proc_fd, PROC_PIDFDSOCKETINFO,
+                                     &info, Int32(MemoryLayout<socket_fdinfo>.size))
+            guard got == MemoryLayout<socket_fdinfo>.size else { continue }
+            guard info.psi.soi_kind == Int32(SOCKINFO_TCP) else { continue }
+            let tcp = info.psi.soi_proto.pri_tcp
+            guard tcp.tcpsi_state == Int32(TSI_S_LISTEN) else { continue }
+            let ini = tcp.tcpsi_ini
+            guard isLoopbackOrAny(ini) else { continue }
+            let port = Int(UInt16(bigEndian: UInt16(truncatingIfNeeded: ini.insi_lport)))
+            if port > 0, port <= 65535, seen.insert(port).inserted {
+                ports.append(port)
+            }
+        }
+        return ports.sorted()
+    }
+
+    private static func isLoopbackOrAny(_ ini: in_sockinfo) -> Bool {
+        // INI_IPV4 = 0x1, INI_IPV6 = 0x2 (from <sys/proc_info.h>)
+        if (ini.insi_vflag & UInt8(INI_IPV4)) != 0 {
+            let addr = UInt32(bigEndian: ini.insi_laddr.ina_46.i46a_addr4.s_addr)
+            return addr == INADDR_LOOPBACK || addr == INADDR_ANY
+        }
+        if (ini.insi_vflag & UInt8(INI_IPV6)) != 0 {
+            let a = ini.insi_laddr.ina_6.__u6_addr.__u6_addr8
+            let bytes = [a.0, a.1, a.2, a.3, a.4, a.5, a.6, a.7,
+                         a.8, a.9, a.10, a.11, a.12, a.13, a.14, a.15]
+            let isZero = bytes.allSatisfy { $0 == 0 }
+            let isLoopback6 = bytes[0..<15].allSatisfy { $0 == 0 } && bytes[15] == 1
+            let isV4MappedLoopback = bytes[0..<10].allSatisfy { $0 == 0 }
+                && bytes[10] == 0xff && bytes[11] == 0xff
+                && bytes[12] == 127 && bytes[13] == 0 && bytes[14] == 0 && bytes[15] == 1
+            return isZero || isLoopback6 || isV4MappedLoopback
+        }
+        return false
     }
 
     public struct ParsedProcess: Sendable, Equatable {
@@ -282,27 +339,6 @@ public struct AntigravityCollector: ProviderCollector {
             if aScore != bScore { return aScore > bScore }
             return a.pid < b.pid
         }
-    }
-
-    /// Parse `/usr/sbin/lsof -nP -iTCP -sTCP:LISTEN -a -p <pid>` output for local TCP ports.
-    public static func parseListeningPorts(_ output: String) -> [Int] {
-        var ports: [Int] = []
-        var seen = Set<Int>()
-        for rawLine in output.split(whereSeparator: \.isNewline) {
-            let line = String(rawLine)
-            guard line.contains("(LISTEN)") else { continue }
-            for token in line.split(whereSeparator: \.isWhitespace) {
-                let s = String(token)
-                guard let colon = s.lastIndex(of: ":") else { continue }
-                let host = String(s[..<colon])
-                let portStr = String(s[s.index(after: colon)...])
-                guard host == "127.0.0.1" || host == "[::1]" || host == "localhost" || host == "*" else { continue }
-                if let port = Int(portStr), port > 0, port <= 65535, seen.insert(port).inserted {
-                    ports.append(port)
-                }
-            }
-        }
-        return ports.sorted()
     }
 
     static func extractFlag(_ cmd: String, names: [String]) -> String? {
@@ -449,7 +485,6 @@ public struct AntigravityCollector: ProviderCollector {
         return [
             context.home.appendingPathComponent(".gemini/antigravity-cli"),
             context.home.appendingPathComponent(".gemini/antigravity"),
-            context.home.appendingPathComponent("Library/Application Support/Antigravity"),
         ]
     }
 
