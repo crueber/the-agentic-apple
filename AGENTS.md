@@ -240,14 +240,25 @@ swift run agentic-apple --render-preview /tmp/previews
 scripts/build-app.sh                  # dist/The Agentic Apple.app
 ```
 
-Tests must stay offline and deterministic: point `CollectorContext.home` at
-`Fixtures.tempHome(_:)`, inject `CollectorContext.http`, use
-`Fixtures.fakeBinary(in:name:script:)` for external tools, inject the Claude
-Keychain reader and OpenRouter's `managementKeyReader` (every
-`OpenRouterCollector(...)` in a test passes one), and pass a fixed `now`. Never touch the real Keychain, network
-or home directory. Do not run live `--text` / `--json` during development: it
-probes real credentials and raises the Keychain prompt; leave live checks to
-the user.
+Automated tests (`scripts/test.sh`) must stay offline and deterministic: point
+`CollectorContext.home` at `Fixtures.tempHome(_:)`, inject
+`CollectorContext.http`, use `Fixtures.fakeBinary(in:name:script:)` for external
+tools, inject the Claude Keychain reader, Antigravity's process/credential
+readers and OpenRouter's `managementKeyReader` (every `OpenRouterCollector(...)`
+in a test passes one), and pass a fixed `now`. Never touch the real Keychain,
+network or home directory inside `agentic-selftest`.
+
+**Live verification is required for collector changes and new providers.**
+Passing offline fixtures alone is not enough — real endpoints, Keychain
+encodings, headers (such as version-gated `User-Agent` strings) and macOS TCC
+behaviours only show up live. Before calling a collector change or new provider
+done (and before pushing or tagging a release), build and verify the compiled
+binary live (`agentic-apple --json`, inspecting the affected provider's actual
+`available`, `tier`, `limits`, `windows`, `resetsAt`, `status` and `error`
+values) to confirm the numbers match the real agent and no unexpected macOS
+folder-access (TCC) prompts are triggered. Keep credentials and PII strictly
+redacted: never print, log, cache or commit real tokens, keys, emails, project
+IDs, workspace names or personal usage figures.
 
 Cache: `~/Library/Caches/com.crueber.agentic-apple/{usage,claude-activity}.json`;
 neither may ever contain key material or text.
@@ -256,7 +267,8 @@ neither may ever contain key material or text.
 
 1. `ProviderID` case, `displayName`, `defaultOrder` (`Model/Provider.swift`).
 2. `Providers/<Name>.swift` conforming to `ProviderCollector`, following the
-   invariants above; any new path or variable gets a Settings override.
+   invariants above (avoid tools like `lsof` that walk vnodes/mounts and trigger
+   macOS TCC folder prompts); any new path or variable gets a Settings override.
 3. Register it in `Collector.all` and `Collector.live`.
 4. Mark: path in `Marks/MarkShapes.swift`, both switches in
    `Marks/ProviderMark.swift`.
@@ -264,9 +276,12 @@ neither may ever contain key material or text.
    `Preview/PreviewFixture.swift`.
 6. A self-test suite + fixtures under `Tests/Fixtures/<id>/`, registered in
    `Sources/AgenticSelfTest/main.swift`.
-7. README (What you get, Automatic selection, Each agent in detail, How it
-   fetches, Troubleshooting), SECURITY.md (reads, processes, network) and this
-   file.
+7. Verify the compiled binary live against a real install on this Mac (confirming
+   live limits, reset times, tier and zero unexpected TCC prompts, without
+   exposing any PII or credentials).
+8. README (What you get, Automatic selection, Each agent in detail, How it
+   fetches, Troubleshooting), SECURITY.md (reads, processes, network),
+   `docs/` (site copy + synthetic `--render-preview` images) and this file.
 
 `show<Id>`, ordering, the Agents settings pane and the CLI follow from
 `ProviderID.allCases`.
