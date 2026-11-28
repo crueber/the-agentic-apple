@@ -23,6 +23,8 @@ struct DisplayState: Equatable {
     /// "Updated to 0.2.1", shown once after a self-update.
     var updateNote: String = ""
     var busy = false
+    /// Manual refresh is in its 30 s cooldown window after a recent manual click.
+    var refreshCoolingDown = false
     /// No fetch has finished yet in this session and nothing was cached.
     var looking = false
 

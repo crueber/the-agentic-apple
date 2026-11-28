@@ -205,8 +205,8 @@ enum GrokTests {
             t.near(p.limits.last?.percent ?? -1, 42, 0.001, "Application Support first")
         }
 
-        // Grok Bot only (no Grok CLI, no ~/.grok): Grok still appears with both meters,
-        // the plan window empty.
+        // Grok Bot only (no Grok CLI, no ~/.grok): Grok still appears with the
+        // Bot meter alone (never a fake 0% placeholder for the CLI plan pool).
         do {
             let home = Fixtures.tempHome("grok-bot-only")
             copy("grok/bot", to: home.appendingPathComponent(appSupportBot))
@@ -216,13 +216,10 @@ enum GrokTests {
             t.equal(p.hint, "")
             t.equal(p.source, "grok-bot")
             t.equal(p.tier, "SuperGrok", "plan label from the Bot reading")
-            t.equal(p.limits.map(\.key), ["weekly", "bot"], "plan meter, then Bot meter")
-            t.equal(p.limits.first?.label, "Weekly limit")
-            t.near(p.limits.first?.percent ?? -1, 0, 0.001, "plan meter empty without a CLI reading")
-            t.equal(p.limits.first?.resetsAt, 0, "no reset to show for the plan meter")
-            t.equal(p.limits.first?.stale, false, "empty, not stale")
-            t.near(p.limits.last?.percent ?? -1, 42, 0.001, "newest Bot reading")
-            t.equal(p.limits.last?.stale, false)
+            t.equal(p.limits.map(\.key), ["bot"], "Bot meter only without a CLI reading")
+            t.equal(p.limits.first?.label, "Grok Bot weekly")
+            t.near(p.limits.first?.percent ?? -1, 42, 0.001, "newest Bot reading")
+            t.equal(p.limits.first?.stale, false)
             t.near(p.readAt, 1_794_902_400_000, 1, "readAt from the Bot reading")
             t.equal(p.activity, Activity.empty, "no CLI ledgers, no activity")
         }
@@ -245,7 +242,7 @@ enum GrokTests {
             let p = await c.collect(context(home))
             t.equal(p.available, true)
             t.equal(p.error, "")
-            t.equal(p.limits.map(\.key), ["weekly", "bot"])
+            t.equal(p.limits.map(\.key), ["bot"])
         }
 
         // Neither the CLI nor Grok Bot: unavailable, silent.

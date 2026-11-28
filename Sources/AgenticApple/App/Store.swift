@@ -25,6 +25,7 @@ final class Store: ObservableObject {
     @Published private(set) var failures = 0
     @Published private(set) var lastError = ""
     @Published private(set) var busy = false
+    @Published private(set) var refreshCoolingDown = false
     @Published private(set) var now = Date().timeIntervalSince1970 * 1000
     @Published private(set) var searchPathReady = false
     /// "Updated to 0.2.1" after a self-update; cleared once the panel has been seen.
@@ -48,6 +49,8 @@ final class Store: ObservableObject {
     private var timeoutTask: Task<Void, Never>?
     private var pendingFetch: Bool?          // manual? — requested before PATH was ready
     private var pollTask: Task<Void, Never>?
+    private var cooldownTask: Task<Void, Never>?
+    private var lastManualAttemptMs: Double = 0
     private var tickTimer: Timer?
     private var cancellables: Set<AnyCancellable> = []
     /// The updater is about to replace the app: start no new collection.
@@ -149,9 +152,10 @@ final class Store: ObservableObject {
     func refreshAfterCredentialChange() {
         guard !fetchesHeld else { return }
         guard searchPathReady else { pendingFetch = true; return }
+        clearManualCooldown()
         if busy || collecting { fetchAfterCollect = true; lastAttemptMs = 0; return }
         lastAttemptMs = 0
-        spawnFetch()
+        spawnFetch(manual: false)
     }
 
     /// `OPENROUTER_MANAGEMENT_KEY` is set (it wins over the Keychain item). Presence only.
@@ -171,19 +175,27 @@ final class Store: ObservableObject {
             fetchAfterCollect = (fetchAfterCollect ?? false) || manual
             return
         }
-        guard Schedule.canFetch(lastAttemptMs: lastAttemptMs, now: nowMs, manual: manual) else {
+        // Manual refreshes are throttled only against recent manual refreshes so
+        // an automatic background poll never silently swallows a user's Refresh click.
+        let since = manual ? lastManualAttemptMs : lastAttemptMs
+        guard Schedule.canFetch(lastAttemptMs: since, now: nowMs, manual: manual) else {
             if !manual { scheduleNextPoll() }
             return
         }
-        spawnFetch()
+        spawnFetch(manual: manual)
     }
 
-    private func spawnFetch() {
+    private func spawnFetch(manual: Bool) {
         busy = true
         collecting = true
         fetchGeneration += 1
         let generation = fetchGeneration
-        lastAttemptMs = nowMs
+        let started = nowMs
+        lastAttemptMs = started
+        if manual {
+            lastManualAttemptMs = started
+            startManualCooldown()
+        }
         writeCache()
         var context = settings.snapshot.context(searchPath: searchPath)
         context.environment = environment
@@ -261,6 +273,23 @@ final class Store: ObservableObject {
         scheduleNextPoll()
     }
 
+    private func startManualCooldown() {
+        cooldownTask?.cancel()
+        refreshCoolingDown = true
+        cooldownTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Schedule.forceMinMs * 1_000_000))
+            guard !Task.isCancelled else { return }
+            self?.refreshCoolingDown = false
+        }
+    }
+
+    private func clearManualCooldown() {
+        cooldownTask?.cancel()
+        cooldownTask = nil
+        lastManualAttemptMs = 0
+        refreshCoolingDown = false
+    }
+
     func scheduleNextPoll() {
         pollTask?.cancel()
         let delay = Schedule.autoDelayMs(fetchedAt: lastFetchMs, attemptedAt: lastAttemptMs, failures: failures,
@@ -334,6 +363,7 @@ final class Store: ObservableObject {
         history = .empty
         lastFetchMs = 0
         lastAttemptMs = 0
+        clearManualCooldown()
         failures = 0
         lastError = ""
         now = nowMs
@@ -366,6 +396,7 @@ final class Store: ObservableObject {
         s.lastError = lastError
         s.updateNote = updateNote
         s.busy = busy
+        s.refreshCoolingDown = refreshCoolingDown
         s.looking = providers.isEmpty && (lastFetchMs == 0 || !searchPathReady)
         return s
     }

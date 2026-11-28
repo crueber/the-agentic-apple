@@ -287,8 +287,8 @@ cache** setting, else `$GROK_BOT_HOME`, else
 2. `~/.config/Grok Bot/sand-client-persistence` (or under `$XDG_CONFIG_HOME`)
 
 Grok Bot on its own is enough: without the Grok CLI, Grok still appears with
-both meters — the plan's **Weekly limit** (empty, since only the CLI reports it)
-and **Grok Bot weekly** — with the plan label taken from the Bot's reading.
+**Grok Bot weekly** and the plan label taken from the Bot's reading. Once the
+Grok CLI writes a billing snapshot, the plan's **Weekly limit** appears beside it.
 
 Open Grok Bot to refresh that cache. A reading past its expiry or its reset is
 shown as *stale* with an em dash.

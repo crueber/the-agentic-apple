@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.2 — 2026-11-28
+
+- **No empty `0%` Grok placeholder.** When only Grok Bot is present (without a
+  Grok CLI billing log), Grok now shows **Grok Bot weekly** alone instead of
+  fabricating a `0%` **Weekly limit** row. Once the Grok CLI writes a billing
+  snapshot, **Weekly limit** appears beside it with its real percentage and
+  reset time.
+- **Manual refresh is never blocked by automatic polls.** Clicking **Refresh**
+  (or pressing `R`) now tracks its 30-second cooldown separately from
+  background polls, so an automatic refresh that just ran can no longer
+  silently swallow a manual click. During the 30-second manual cooldown, the
+  Refresh button and **Refresh Now** menu item visibly disable with a tooltip.
+
 ## 1.2.1 — 2026-11-27
 
 - **Antigravity Session & Weekly limits.** Send a versioned `User-Agent`

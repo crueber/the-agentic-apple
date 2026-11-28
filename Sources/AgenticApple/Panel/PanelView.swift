@@ -208,8 +208,11 @@ struct PanelHero: View {
                     .accessibilityLabel(Text("Highest limit \(top)"))
             }
             HoverIconButton(systemName: "arrow.clockwise",
-                            help: state.busy ? "Refreshing…" : "Refresh (R)",
-                            spinning: state.busy, enabled: !state.busy, action: actions.refresh)
+                            help: state.busy ? "Refreshing…"
+                                : (state.refreshCoolingDown ? "Refreshed just now — available again shortly" : "Refresh (R)"),
+                            spinning: state.busy,
+                            enabled: !state.busy && !state.refreshCoolingDown,
+                            action: actions.refresh)
         }
     }
 }

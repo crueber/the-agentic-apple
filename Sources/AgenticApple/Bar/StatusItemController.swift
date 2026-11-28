@@ -190,7 +190,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSMenuDelegate {
         menu.autoenablesItems = false
         let refresh = NSMenuItem(title: "Refresh Now", action: #selector(menuRefresh), keyEquivalent: "r")
         refresh.target = self
-        refresh.isEnabled = !store.busy
+        refresh.isEnabled = !store.busy && !store.refreshCoolingDown
+        if store.refreshCoolingDown { refresh.toolTip = "Refreshed just now — available again shortly" }
         menu.addItem(refresh)
         let settings = NSMenuItem(title: "Settings…", action: #selector(menuSettings), keyEquivalent: ",")
         settings.target = self
